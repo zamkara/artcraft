@@ -2,13 +2,11 @@
 > This repository only builds and publishes Arch Linux releases of the upstream project, which does not currently provide them.
 > It is not affiliated with or endorsed by the upstream authors. For the source code, issues, and development, go to [storytold/artcraft](https://github.com/storytold/artcraft).
 
-**artcraft_is_easy_fun_and_yours.mp4**
-
 [https://github.com/user-attachments/assets/b4e24c27-d87d-4fd1-8599-dc0d0b8af48d](https://github.com/user-attachments/assets/b4e24c27-d87d-4fd1-8599-dc0d0b8af48d)
 
 The IDE for artists.
 
-[![Discord](https://img.shields.io/discord/1359579021108842617?style=for-the-badge&label=discord&color=ffffff&logo=discord&logoColor=ffffff)](https://discord.gg/artcraft) [![YouTube](https://img.shields.io/youtube/channel/subscribers/UCdjY4VG0ntoGwFsKZO4sVWA?style=for-the-badge&logo=YouTube)](https://www.youtube.com/@OfficialArtCraftStudios) [![X](https://img.shields.io/twitter/follow/get_artcraft?style=for-the-badge&label=follow&logo=x&logoColor=ffffff&color=ffffff)](https://x.com/intent/follow?screen_name=get_artcraft) [![LinkedIn](https://img.shields.io/badge/linkedin--0A66C2?style=for-the-badge)](https://www.linkedin.com/company/artcraft-ai)
+[![Discord](https://img.shields.io/discord/1359579021108842617?style=for-the-badge&label=discord&color=ffffff&logo=discord&logoColor=ffffff)](https://discord.gg/artcraft) [![YouTube](https://img.shields.io/badge/YouTube-OfficialArtCraftStudios-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://www.youtube.com/@OfficialArtCraftStudios) [![X](https://img.shields.io/badge/X-@get__artcraft-000000?style=for-the-badge&logo=x&logoColor=white)](https://x.com/intent/follow?screen_name=get_artcraft) [![LinkedIn](https://img.shields.io/badge/LinkedIn-artcraft--ai-0A66C2?style=for-the-badge)](https://www.linkedin.com/company/artcraft-ai)
 
 ---
 
