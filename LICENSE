@@ -1,0 +1,79 @@
+ALMATERA INCUBATOR LICENSE
+Issued August 2026
+
+Copyright (c) 2026 Almatera Incubator
+
+PREAMBLE
+
+This license governs works of any digital kind — including but not limited to
+software, source code, designs, visual assets, documents, datasets, and models
+(each, the "Work"). It is written to be as short and permissive as possible
+while replacing the traditional notion of a fixed original author with a
+traceable chain of contributing groups.
+
+Genuine authorship is increasingly difficult to establish: a work can be
+reproduced quickly and convincingly by many hands. This license therefore does
+not privilege a single original owner. It instead recognizes the groups that
+take responsibility for a Work over time. A contribution carries weight only
+when a structured group stands behind it; a machine cannot stand behind
+anything, and so artificial intelligence holds no independent standing under
+this license. Where AI is used, the responsibility for the result rests with
+the group that verifies it, not with the tool.
+
+GRANT
+
+Permission is hereby granted, free of charge, to any person or group obtaining
+a copy of this Work, to deal in the Work without restriction, including without
+limitation the rights to use, copy, modify, merge, publish, distribute,
+sublicense, and/or sell copies of the Work, and to permit persons to whom the
+Work is furnished to do so, including within closed-source and commercial
+products, subject to the conditions below.
+
+CONDITIONS
+
+1. Credit is kept at the level of a Group, never of an individual. A "Group" is
+   any structured collective — an organization, company, team, or other body —
+   that has a declared structure and a clearly identifiable top responsible
+   party, and that remains identifiable and reachable. An individual may
+   satisfy this by forming their own Group, even one consisting solely of its
+   owner.
+
+2. When a Work carries credits, those credits must be carried forward. This may
+   be done in either of two ways, at the deriving Group's discretion:
+     (a) by listing the upstream Groups, in whole or in part; or
+     (b) by crediting the upstream Work itself, which is sufficient to
+         represent the entire chain of Groups behind it.
+   A reference under (b) should identify the upstream Work by name and its
+   responsible Group, so that it remains traceable even if a link becomes
+   unavailable.
+
+3. Credits need not be displayed in the interface of any product, but must
+   remain findable by a party who looks for them.
+
+4. A credit obligation persists only while a substantial portion of the
+   upstream Work is still used and still relevant. Once that is no longer the
+   case, whether and how long to retain the credit is left to the judgment and
+   policy of the deriving Group. No rule can anticipate every situation; that
+   discretion is where a Group's own policy applies.
+
+5. This Work may be used to train artificial-intelligence models. In that case
+   the credits need not appear in the model or its output, but the origin of
+   the Work must remain clear and traceable — for example, recorded in the
+   dataset documentation or the model's accompanying materials.
+
+IDENTITY
+
+This license grants no rights to the names, logos, wordmarks, or other identity
+of any Group. Identity is not licensed together with the Work and may not be
+taken, reused, or presented as endorsement without agreement between the
+parties — particularly where such identity is registered nationally or
+internationally.
+
+WARRANTY
+
+THE WORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE WORK OR THE USE OR OTHER DEALINGS IN THE WORK.
