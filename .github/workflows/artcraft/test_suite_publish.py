@@ -1,6 +1,6 @@
 import hashlib,json,pathlib,tempfile,unittest
 from unittest.mock import patch
-from suite_publish import APPS,collect
+from suite_publish import APPS,collect,publish
 class SuiteTests(unittest.TestCase):
     def fixture(self,root,app):
         folder=root/app;folder.mkdir()
@@ -26,6 +26,12 @@ class SuiteTests(unittest.TestCase):
             self.fixture(artifacts,'artcraft')
             with patch('suite_publish.remote_state',side_effect=RuntimeError('Missing app')):
                 with self.assertRaises(RuntimeError):collect(artifacts,out,'owner/repo')
+    def test_unchanged_suite_skips_package_downloads(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=pathlib.Path(temp)
+            with patch('suite_publish.remote_state') as remote,patch('suite_publish.collect',side_effect=AssertionError('Must not download unchanged packages')):
+                publish(root,'owner/repo','commit',root)
+                self.assertEqual(remote.call_count,len(APPS))
     def test_corrupt_build_is_rejected(self):
         with tempfile.TemporaryDirectory() as temp:
             root=pathlib.Path(temp);artifacts=root/'artifacts';artifacts.mkdir();out=root/'out';out.mkdir()

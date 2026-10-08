@@ -53,6 +53,9 @@ def collect(artifacts,directory,repository):
     return states,bool(built)
 
 def publish(artifacts,repository,target,directory):
+    if not any(artifacts.rglob('upstream.json')):
+        for app in APPS:remote_state(repository,app)
+        print('All eight packages are current; no downloads or release needed');return
     states,changed=collect(artifacts,directory,repository)
     if not changed:
         print('All eight packages are current; suite release skipped');return
