@@ -1,0 +1,121 @@
+name: Daily Arch Linux releases
+
+on:
+  schedule:
+    # Daily at 03:17 Asia/Jakarta (20:17 UTC).
+    - cron: '17 20 * * *'
+  workflow_dispatch:
+    inputs:
+      app:
+        description: Application to check
+        type: choice
+        default: all
+        options: [all, designcraft, effectcraft, pdfcraft, lightcraft, filmcraft, vectorcraft, photocraft]
+  push:
+    branches: [main]
+    paths: ['.github/workflows/**']
+  pull_request:
+    paths: ['.github/workflows/**']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: artcraft-${{ github.event_name == 'pull_request' && github.ref || 'releases' }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Check workflow helpers and release planning
+        run: |
+          python3 -m unittest discover -s .github/workflows/artcraft -p 'test_*.py' -v
+          bash -n .github/workflows/artcraft/build.sh
+          python3 -m py_compile .github/workflows/artcraft/prepare.py .github/workflows/artcraft/publish.py .github/workflows/artcraft/validate.py
+          test "$(git ls-tree --name-only HEAD | sort | tr '\n' ' ')" = '.github LICENSE '
+
+  package:
+    needs: validate
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        app: [designcraft, effectcraft, pdfcraft, lightcraft, filmcraft, vectorcraft, photocraft]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Check upstream and prepare immutable source inputs
+        id: upstream
+        if: github.event_name != 'workflow_dispatch' || inputs.app == 'all' || inputs.app == matrix.app
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APP: ${{ matrix.app }}
+        run: python3 .github/workflows/artcraft/prepare.py "$APP" --directory ".github/workflows/.build/$APP"
+      - name: Restore Rust build cache
+        if: steps.upstream.outputs.changed == 'true'
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: .github/workflows/.build/${{ matrix.app }}/.cache
+          key: arch-x86_64-${{ matrix.app }}-${{ steps.upstream.outputs.recipe }}-${{ steps.upstream.outputs.tag }}
+          restore-keys: arch-x86_64-${{ matrix.app }}-${{ steps.upstream.outputs.recipe }}-
+      - name: Build and validate with Arch makepkg
+        if: steps.upstream.outputs.changed == 'true'
+        env:
+          APP: ${{ matrix.app }}
+        run: |
+          # Free unused preinstalled SDKs in this disposable hosted runner.
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          if ! swapon --show --noheadings | grep -q .; then
+            sudo fallocate -l 6G /swapfile-artcraft
+            sudo chmod 600 /swapfile-artcraft
+            sudo mkswap /swapfile-artcraft
+            sudo swapon /swapfile-artcraft
+          fi
+          docker run --rm \
+            --mount "type=bind,src=$GITHUB_WORKSPACE/.github/workflows/.build/$APP,dst=/build" \
+            --mount "type=bind,src=$GITHUB_WORKSPACE/.github/workflows/artcraft,dst=/recipe,readonly" \
+            archlinux:base-devel bash /recipe/build.sh /build /recipe
+      - name: Preserve validated package
+        if: steps.upstream.outputs.changed == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: arch-${{ matrix.app }}-${{ steps.upstream.outputs.tag }}
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            .github/workflows/.build/${{ matrix.app }}/*.pkg.tar.zst
+            .github/workflows/.build/${{ matrix.app }}/PKGBUILD
+            .github/workflows/.build/${{ matrix.app }}/.SRCINFO
+            .github/workflows/.build/${{ matrix.app }}/upstream.json
+            .github/workflows/.build/${{ matrix.app }}/SHA256SUMS
+            .github/workflows/.build/${{ matrix.app }}/CHANGELOG.md
+      - name: Publish complete release
+        if: steps.upstream.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APP: ${{ matrix.app }}
+        run: python3 .github/workflows/artcraft/publish.py ".github/workflows/.build/$APP" --repository "$GITHUB_REPOSITORY" --target "$GITHUB_SHA"
+      - name: Report result
+        if: success()
+        env:
+          APP: ${{ matrix.app }}
+          CHANGED: ${{ steps.upstream.outputs.changed }}
+          TAG: ${{ steps.upstream.outputs.tag }}
+        run: |
+          if [[ "$CHANGED" == 'true' ]]; then
+            printf '%s: published [%s](https://github.com/%s/releases/tag/%s)\n' "$APP" "$TAG" "$GITHUB_REPOSITORY" "$TAG" >> "$GITHUB_STEP_SUMMARY"
+          elif [[ "$CHANGED" == 'false' ]]; then
+            printf '%s: unchanged upstream and packaging inputs; build skipped.\n' "$APP" >> "$GITHUB_STEP_SUMMARY"
+          fi

@@ -1,0 +1,9 @@
+{
+  "designcraft": {"repo": "storytold/designcraft", "description": "Native page layout and publishing application", "audio": false},
+  "effectcraft": {"repo": "storytold/effectcraft", "description": "Native motion graphics and visual effects compositor", "audio": true},
+  "pdfcraft": {"repo": "storytold/pdfcraft", "description": "Native PDF editor and document tools", "audio": false},
+  "lightcraft": {"repo": "storytold/lightcraft", "description": "Native photo development and catalog application", "audio": false},
+  "filmcraft": {"repo": "storytold/filmcraft", "description": "Native video editing application", "audio": true},
+  "vectorcraft": {"repo": "storytold/vectorcraft", "description": "Native vector illustration application", "audio": false},
+  "photocraft": {"repo": "storytold/photocraft", "description": "Native raster image editing application", "audio": false}
+}
