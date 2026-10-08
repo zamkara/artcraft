@@ -5,8 +5,8 @@ upstream desktop app, CLI, desktop entry, icons, MIME types, metadata and licenc
 Install a downloaded release package with `sudo pacman -U ./APP-VERSION-x86_64.pkg.tar.zst`.
 
 The daily check runs at 20:17 UTC / 03:17 Asia/Jakarta. GitHub may delay scheduled
-runs. `workflow_dispatch` can check all apps or one app. Changes to this workflow
-also trigger a check; pull requests only run helper validation.
+runs. `workflow_dispatch` can check all apps or one app. Pushes and pull requests run helper validation; only the daily schedule or
+manual dispatch build and release packages.
 
 For each app, the upstream default-branch commit, the font commit pinned in its
 release workflow, and the packaging recipe hash are compared with `upstream.json`
@@ -25,10 +25,16 @@ this repository. Runtime build files stay under `.github/workflows/.build/` on
 the disposable runner; cached compilation files are stored by Actions.
 
 Every published release includes the native package, its generated `PKGBUILD`,
-`.SRCINFO`, `upstream.json`, and `SHA256SUMS`. Package contents, missing shared
+`SRCINFO`, `upstream.json`, `CHANGELOG.md`, and `SHA256SUMS`.
+`SRCINFO` contains makepkg's unmodified `.SRCINFO` content; its release filename
+avoids GitHub's automatic renaming of leading-dot asset names. Package contents, missing shared
 libraries, CLI startup and desktop entries are checked before publication. The
 release is uploaded as a draft, verified, then made public. Re-running a failed
 upload resumes the draft without rewriting an existing public release.
+
+Full changelogs are downloadable without truncation. When notes exceed GitHub's
+release-body limit, the body shows original upstream paragraphs and links to
+the complete changelog asset.
 
 Changelog text comes only from the upstream release body and upstream commit
 messages. Initial builds include the most recent upstream release notes followed
