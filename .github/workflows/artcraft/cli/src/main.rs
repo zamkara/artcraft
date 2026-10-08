@@ -232,13 +232,13 @@ fn available(release: &Release, supported: &BTreeSet<String>) -> Option<Availabl
     }
     for app in supported {
         let prefix = format!("{app}-");
-        if !release.tag_name.starts_with(&prefix) {
-            continue;
-        }
-        let package = release
+        let Some(package) = release
             .assets
             .iter()
-            .find(|a| a.name.starts_with(&prefix) && a.name.ends_with("-x86_64.pkg.tar.zst"))?;
+            .find(|a| a.name.starts_with(&prefix) && a.name.ends_with("-x86_64.pkg.tar.zst"))
+        else {
+            continue;
+        };
         if !release.assets.iter().any(|a| a.name == "SHA256SUMS") {
             return None;
         }
@@ -284,8 +284,10 @@ fn catalog(
                 16 * 1024 * 1024,
             )?)?;
             for release in &values {
-                if let Some(a) = available(release, supported) {
-                    found.insert(a.app);
+                for app in supported {
+                    if let Some(a) = available(release, &BTreeSet::from([app.clone()])) {
+                        found.insert(a.app);
+                    }
                 }
             }
             let end = values.len() < 100 || found.len() == supported.len();
@@ -320,8 +322,10 @@ fn catalog(
     releases.sort_by(|a, b| b.published_at.cmp(&a.published_at));
     let mut result = BTreeMap::new();
     for release in releases {
-        if let Some(a) = available(&release, supported) {
-            result.entry(a.app.clone()).or_insert(a);
+        for app in supported {
+            if let Some(a) = available(&release, &BTreeSet::from([app.clone()])) {
+                result.entry(a.app.clone()).or_insert(a);
+            }
         }
     }
     Ok(result)
@@ -579,8 +583,13 @@ fn main_result() -> Result<()> {
     )?;
     match command {
         Command::List => {
+            if !known.keys().any(|name| catalog.contains_key(name)) {
+                println!("No creative-app packages have been published yet.");
+                println!("Releases: https://github.com/zamkara/artcraft/releases");
+                return Ok(());
+            }
             println!("{:<15} {:<42} AVAILABLE", "APP", "INSTALLED");
-            for name in known.keys() {
+            for name in known.keys().filter(|name| catalog.contains_key(*name)) {
                 let local = installed(name)?.unwrap_or_else(|| "Not installed".to_string());
                 let remote = catalog
                     .get(name)
@@ -611,12 +620,9 @@ fn main_result() -> Result<()> {
                     remote.release.published_at.as_deref().unwrap_or("Unknown")
                 );
                 if changelog {
-                    if let Some(asset) = remote
-                        .release
-                        .assets
-                        .iter()
-                        .find(|a| a.name == "CHANGELOG.md")
-                    {
+                    if let Some(asset) = remote.release.assets.iter().find(|a| {
+                        a.name == format!("{app}.CHANGELOG.md") || a.name == "CHANGELOG.md"
+                    }) {
                         println!(
                             "\n{}",
                             String::from_utf8(get(
@@ -731,6 +737,16 @@ mod tests {
                 ..
             }
         ));
+    }
+    #[test]
+    fn suite_release_exposes_each_published_package() {
+        let mut release = release();
+        release.tag_name = "artcraft-suite-20261008".into();
+        release.assets.push(Asset { name: "photocraft-2.0-1-x86_64.pkg.tar.zst".into(), browser_download_url: "https://github.com/zamkara/artcraft/releases/download/artcraft-suite-20261008/photocraft-2.0-1-x86_64.pkg.tar.zst".into(), size: 1 });
+        for name in ["designcraft", "photocraft"] {
+            assert!(available(&release, &BTreeSet::from([name.to_string()])).is_some());
+        }
+        assert!(available(&release, &BTreeSet::from(["filmcraft".to_string()])).is_none());
     }
     #[test]
     #[ignore = "Downloads a real published package; requires network and Arch pacman"]

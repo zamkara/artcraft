@@ -5,12 +5,6 @@ on:
     # Daily at 03:17 Asia/Jakarta (20:17 UTC).
     - cron: '17 20 * * *'
   workflow_dispatch:
-    inputs:
-      app:
-        description: Application to check
-        type: choice
-        default: all
-        options: [all, artcraft, designcraft, effectcraft, pdfcraft, lightcraft, filmcraft, vectorcraft, photocraft]
   push:
     branches: [main]
     paths: ['.github/workflows/**']
@@ -21,7 +15,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: artcraft-${{ github.event_name == 'pull_request' && github.ref || github.event_name == 'push' && 'manager' || 'releases' }}
+  group: artcraft-${{ github.event_name == 'pull_request' && github.ref || 'suite' }}
   cancel-in-progress: false
 
 jobs:
@@ -38,7 +32,7 @@ jobs:
           bash -n .github/workflows/artcraft/build.sh
           bash -n .github/workflows/artcraft/manager-build.sh
           bash -n .github/workflows/artcraft/install.sh.in
-          python3 -m py_compile .github/workflows/artcraft/manager_prepare.py
+          python3 -m py_compile .github/workflows/artcraft/manager_prepare.py .github/workflows/artcraft/suite_publish.py
           python3 -m py_compile .github/workflows/artcraft/prepare.py .github/workflows/artcraft/publish.py .github/workflows/artcraft/validate.py
           test "$(git ls-tree --name-only HEAD | sort | tr '\n' ' ')" = '.github LICENSE '
 
@@ -88,15 +82,10 @@ jobs:
             .github/workflows/.build/artcraft/upstream.json
             .github/workflows/.build/artcraft/SHA256SUMS
             .github/workflows/.build/artcraft/CHANGELOG.md
-      - name: Publish CLI and installer
-        if: steps.manager.outputs.changed == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: python3 .github/workflows/artcraft/publish.py .github/workflows/.build/artcraft --repository "$GITHUB_REPOSITORY" --target "$GITHUB_SHA"
 
   package:
-    needs: [validate, manager]
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    needs: validate
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     permissions:
@@ -112,7 +101,6 @@ jobs:
           persist-credentials: false
       - name: Check upstream and prepare immutable source inputs
         id: upstream
-        if: github.event_name != 'workflow_dispatch' || inputs.app == 'all' || inputs.app == matrix.app
         env:
           GH_TOKEN: ${{ github.token }}
           APP: ${{ matrix.app }}
@@ -156,21 +144,23 @@ jobs:
             .github/workflows/.build/${{ matrix.app }}/upstream.json
             .github/workflows/.build/${{ matrix.app }}/SHA256SUMS
             .github/workflows/.build/${{ matrix.app }}/CHANGELOG.md
-      - name: Publish complete release
-        if: steps.upstream.outputs.changed == 'true'
+
+  publish:
+    needs: [manager, package]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Download all validated build artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          path: .github/workflows/.artifacts
+      - name: Publish one complete suite release
         env:
           GH_TOKEN: ${{ github.token }}
-          APP: ${{ matrix.app }}
-        run: python3 .github/workflows/artcraft/publish.py ".github/workflows/.build/$APP" --repository "$GITHUB_REPOSITORY" --target "$GITHUB_SHA"
-      - name: Report result
-        if: success()
-        env:
-          APP: ${{ matrix.app }}
-          CHANGED: ${{ steps.upstream.outputs.changed }}
-          TAG: ${{ steps.upstream.outputs.tag }}
-        run: |
-          if [[ "$CHANGED" == 'true' ]]; then
-            printf '%s: published [%s](https://github.com/%s/releases/tag/%s)\n' "$APP" "$TAG" "$GITHUB_REPOSITORY" "$TAG" >> "$GITHUB_STEP_SUMMARY"
-          elif [[ "$CHANGED" == 'false' ]]; then
-            printf '%s: unchanged upstream and packaging inputs; build skipped.\n' "$APP" >> "$GITHUB_STEP_SUMMARY"
-          fi
+        run: python3 .github/workflows/artcraft/suite_publish.py --artifacts .github/workflows/.artifacts --repository "$GITHUB_REPOSITORY" --target "$GITHUB_SHA"

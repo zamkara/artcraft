@@ -34,8 +34,10 @@ def releases(repo):
 
 def previous(repo,app):
     for release in releases(repo):
-        if release['draft'] or not release['tag_name'].startswith(app+'-'):continue
-        asset=next((x for x in release['assets'] if x['name']=='upstream.json'),None)
+        if release['draft']:continue
+        asset=next((x for x in release['assets'] if x['name']==app+'.upstream.json'),None)
+        if asset is None and release['tag_name'].startswith(app+'-'):
+            asset=next((x for x in release['assets'] if x['name']=='upstream.json'),None)
         if asset:
             state=json.loads(request(asset['url'],'application/octet-stream'))
             if state.get('app')!=app:raise ValueError('Incorrect release state')
