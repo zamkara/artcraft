@@ -11,6 +11,16 @@ class ReleaseNotesTests(unittest.TestCase):
             self.assertNotIn('.SRCINFO',[x.name for x in assets])
             checks={line.split('  ')[1]:line.split('  ')[0] for line in (out/'SHA256SUMS').read_text().splitlines()}
             for path in assets[:-1]:self.assertEqual(checks[path.name],hashlib.sha256(path.read_bytes()).hexdigest())
+    def test_manager_binary_and_installer_are_checksummed(self):
+        with tempfile.TemporaryDirectory() as rootdir,tempfile.TemporaryDirectory() as outdir:
+            root=pathlib.Path(rootdir);out=pathlib.Path(outdir)
+            for name in ['manager.pkg.tar.zst','PKGBUILD','.SRCINFO','upstream.json','CHANGELOG.md','artcraft-linux-x86_64','install.sh']:
+                (root/name).write_bytes(('content '+name).encode())
+            assets=export_assets(root,out,{'app':'artcraft','package':'manager.pkg.tar.zst'})
+            self.assertEqual(len(assets),8)
+            checks={line.split('  ')[1]:line.split('  ')[0] for line in (out/'SHA256SUMS').read_text().splitlines()}
+            for name in ['artcraft-linux-x86_64','install.sh']:
+                self.assertEqual(checks[name],hashlib.sha256((root/name).read_bytes()).hexdigest())
     def test_short_notes_are_unchanged(self):
         body='Exact upstream text.\n\nSecond paragraph.\n'
         self.assertEqual(release_notes(body,'owner/repo','tag'),body)

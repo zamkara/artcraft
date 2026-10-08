@@ -5,8 +5,10 @@ upstream desktop app, CLI, desktop entry, icons, MIME types, metadata and licenc
 Install a downloaded release package with `sudo pacman -U ./APP-VERSION-x86_64.pkg.tar.zst`.
 
 The daily check runs at 20:17 UTC / 03:17 Asia/Jakarta. GitHub may delay scheduled
-runs. `workflow_dispatch` can check all apps or one app. Pushes and pull requests run helper validation; only the daily schedule or
-manual dispatch build and release packages.
+runs. `workflow_dispatch` can check all apps, one app, or only `artcraft`. Pushes build
+and release the manager when its source changes. Pull requests run validation.
+Creative-app builds run only on the daily schedule or manual dispatch, with up
+to seven independent runners. The manager is published before app builds begin.
 
 For each app, the upstream default-branch commit, the font commit pinned in its
 release workflow, and the packaging recipe hash are compared with `upstream.json`
@@ -46,3 +48,16 @@ Omarchy uses the same native Arch package format; no separate Omarchy binary
 format or desktop configuration override is required. No host applications are
 installed by this workflow. Signing and a pacman repository are outside the
 initial build-and-release scope.
+
+## Artcraft manager
+
+The Rust CLI source lives in `cli/`. The manager release includes its native Arch
+package, `artcraft-linux-x86_64`, and `install.sh`. Only manager releases are marked
+as GitHub's latest release so the installation URL stays stable:
+
+```sh
+curl -fsSL https://github.com/zamkara/artcraft/releases/latest/download/install.sh | bash
+```
+
+See [CLI commands and verification](cli/README.md). App changelog assets retain
+the complete upstream text; release bodies also include the manager installer.
