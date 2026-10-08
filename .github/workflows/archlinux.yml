@@ -21,7 +21,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: artcraft-${{ github.event_name == 'pull_request' && github.ref || 'releases' }}
+  group: artcraft-${{ github.event_name == 'pull_request' && github.ref || github.event_name == 'push' && 'manager' || 'releases' }}
   cancel-in-progress: false
 
 jobs:

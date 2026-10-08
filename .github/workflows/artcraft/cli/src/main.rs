@@ -1,5 +1,5 @@
 use anyhow::{Context, Result, bail, ensure};
-use clap::{Parser, Subcommand};
+use clap::Parser;
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -8,7 +8,7 @@ use std::{
     fs,
     io::{Read, Write},
     path::{Path, PathBuf},
-    process::{Command as Process, ExitCode},
+    process::{Command as Process, ExitCode, Stdio},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -19,46 +19,106 @@ const MAX_PACKAGE: u64 = 2 * 1024 * 1024 * 1024;
 #[derive(Parser)]
 #[command(
     version = option_env!("ARTCRAFT_PKGVER").unwrap_or(env!("CARGO_PKG_VERSION")),
-    about = "Install and update native Artcraft creative apps on Arch Linux"
+    about = "Install and update native Artcraft creative apps on Arch Linux",
+    group(clap::ArgGroup::new("action").args(["list", "info", "install", "updates", "upgrade", "remove", "self_update", "bootstrap"]))
 )]
 struct Cli {
-    /// Fetch current release information instead of using the five-minute cache
-    #[arg(long, global = true)]
-    refresh: bool,
-    #[command(subcommand)]
-    command: Option<Command>,
-}
-#[derive(Subcommand)]
-enum Command {
-    /// List creative apps and their installed and available versions
-    List,
-    /// Show application details and release information
-    Info {
-        app: String,
-        #[arg(long)]
-        changelog: bool,
-    },
-    /// Install one or more apps, or "all"
-    Install {
-        #[arg(required = true)]
-        apps: Vec<String>,
-    },
-    /// Check installed apps and Artcraft for available updates
-    Updates,
+    /// List apps and available versions (default)
+    #[arg(short = 'l', long)]
+    list: bool,
+    /// Show app details
+    #[arg(short = 's', long)]
+    info: bool,
+    /// Install selected apps
+    #[arg(short = 'i', long)]
+    install: bool,
+    /// Check for updates
+    #[arg(short = 'c', long)]
+    updates: bool,
     /// Upgrade installed apps and Artcraft, or selected apps
+    #[arg(short = 'u', long)]
+    upgrade: bool,
+    /// Remove selected apps
+    #[arg(short = 'r', long)]
+    remove: bool,
+    /// Upgrade Artcraft itself
+    #[arg(short = 'U', long)]
+    self_update: bool,
+    /// Select all apps for installation or upgrade
+    #[arg(short = 'a', long)]
+    all: bool,
+    /// Fetch fresh release metadata
+    #[arg(short = 'f', long)]
+    refresh: bool,
+    /// Include changelog with app details
+    #[arg(short = 'n', long, requires = "info")]
+    changelog: bool,
+    #[arg(short = 'B', hide = true, value_name = "RELEASE")]
+    bootstrap: Option<String>,
+    #[arg(value_name = "APP")]
+    apps: Vec<String>,
+}
+enum Command {
+    List,
+    Info { app: String, changelog: bool },
+    Install { apps: Vec<String> },
+    Updates,
     Upgrade { apps: Vec<String> },
-    /// Uninstall selected apps through pacman
-    Remove {
-        #[arg(required = true)]
-        apps: Vec<String>,
-    },
-    /// Upgrade Artcraft itself through pacman
+    Remove { apps: Vec<String> },
     SelfUpdate,
-    #[command(hide = true)]
-    SelfInstall {
-        #[arg(long)]
-        release: String,
-    },
+    SelfInstall { release: String },
+}
+impl Cli {
+    fn into_command(self) -> Result<Command> {
+        ensure!(
+            !self.all || self.install || self.upgrade,
+            "Use -a with -i or -u"
+        );
+        ensure!(
+            self.apps.is_empty() || self.install || self.upgrade || self.remove || self.info,
+            "App names require -i, -u, -r, or -s"
+        );
+        ensure!(
+            !self.all || self.apps.is_empty(),
+            "Use -a alone, or specify app names"
+        );
+        if self.install {
+            let apps = if self.all {
+                vec!["all".to_string()]
+            } else {
+                self.apps
+            };
+            ensure!(
+                !apps.is_empty(),
+                "Specify apps with -i APP, or install all with -ia"
+            );
+            return Ok(Command::Install { apps });
+        }
+        if self.upgrade {
+            return Ok(Command::Upgrade { apps: self.apps });
+        }
+        if self.info {
+            ensure!(self.apps.len() == 1, "Use -s APP for one app");
+            return Ok(Command::Info {
+                app: self.apps[0].clone(),
+                changelog: self.changelog,
+            });
+        }
+        if self.remove {
+            ensure!(!self.apps.is_empty(), "Specify apps with -r APP");
+            return Ok(Command::Remove { apps: self.apps });
+        }
+        if let Some(release) = self.bootstrap {
+            return Ok(Command::SelfInstall { release });
+        }
+        if self.self_update {
+            return Ok(Command::SelfUpdate);
+        }
+        if self.updates {
+            return Ok(Command::Updates);
+        }
+        Ok(Command::List)
+    }
 }
 #[derive(Deserialize)]
 struct App {
@@ -420,7 +480,10 @@ fn pacman(arguments: &[String]) -> Result<()> {
         command.args(["--", "/usr/bin/pacman"]);
         command
     };
-    // Let pacman display and confirm the transaction; never bypass its prompt.
+    // Read confirmations from the terminal, never from piped installer source.
+    let terminal = fs::File::open("/dev/tty")
+        .context("An interactive terminal is required for pacman confirmation")?;
+    command.stdin(Stdio::from(terminal));
     ensure!(
         command.args(arguments).status()?.success(),
         "pacman did not complete the transaction"
@@ -475,7 +538,8 @@ fn main_result() -> Result<()> {
     let known = apps()?;
     let mut supported: BTreeSet<String> = known.keys().cloned().collect();
     supported.insert("artcraft".to_string());
-    let command = cli.command.unwrap_or(Command::List);
+    let refresh = cli.refresh;
+    let command = cli.into_command()?;
     if let Command::Remove { apps } = &command {
         let targets = select(apps, &supported, true)?;
         let mut arguments = vec!["-R".to_string(), "--".to_string()];
@@ -504,7 +568,7 @@ fn main_result() -> Result<()> {
     let catalog = catalog(
         &client,
         &supported,
-        cli.refresh
+        refresh
             || matches!(
                 command,
                 Command::Upgrade { .. }
@@ -524,9 +588,7 @@ fn main_result() -> Result<()> {
                     .unwrap_or("Not released yet");
                 println!("{name:<15} {local:<42} {remote}");
             }
-            println!(
-                "\nInstall: artcraft install <app>\nUpdates: artcraft updates\nUpgrade: artcraft upgrade"
-            );
+            println!("\nInstall: artcraft -i APP\nUpdates: artcraft -c\nUpgrade: artcraft -u");
         }
         Command::Info { app, changelog } => {
             ensure!(supported.contains(&app), "Unknown app '{app}'");
@@ -629,6 +691,47 @@ mod tests {
         Release { tag_name: "designcraft-1.0-1".into(), html_url: "https://github.com/zamkara/artcraft/releases/tag/designcraft-1.0-1".into(), body: None, draft: false, prerelease: false, published_at: Some("2026-10-08T00:00:00Z".into()), assets: vec![Asset { name: "designcraft-1.0-1-x86_64.pkg.tar.zst".into(), browser_download_url: "https://github.com/zamkara/artcraft/releases/download/designcraft-1.0-1/designcraft-1.0-1-x86_64.pkg.tar.zst".into(), size: 1 }, Asset { name: "SHA256SUMS".into(), browser_download_url: "https://github.com/zamkara/artcraft/releases/download/designcraft-1.0-1/SHA256SUMS".into(), size: 70 }] }
     }
 
+    #[test]
+    fn short_flags_select_actions_and_reject_conflicts() {
+        assert!(
+            matches!(Cli::try_parse_from(["artcraft", "-ia"]).unwrap().into_command().unwrap(), Command::Install { apps } if apps == vec!["all"])
+        );
+        assert!(
+            matches!(Cli::try_parse_from(["artcraft", "-u"]).unwrap().into_command().unwrap(), Command::Upgrade { apps } if apps.is_empty())
+        );
+        assert!(matches!(
+            Cli::try_parse_from(["artcraft", "-U"])
+                .unwrap()
+                .into_command()
+                .unwrap(),
+            Command::SelfUpdate
+        ));
+        assert!(
+            Cli::try_parse_from(["artcraft", "-i", "designcraft", "-r", "designcraft"]).is_err()
+        );
+        assert!(
+            Cli::try_parse_from(["artcraft", "-a"])
+                .unwrap()
+                .into_command()
+                .is_err()
+        );
+        assert!(
+            Cli::try_parse_from(["artcraft", "-i"])
+                .unwrap()
+                .into_command()
+                .is_err()
+        );
+        assert!(matches!(
+            Cli::try_parse_from(["artcraft", "-sn", "designcraft"])
+                .unwrap()
+                .into_command()
+                .unwrap(),
+            Command::Info {
+                changelog: true,
+                ..
+            }
+        ));
+    }
     #[test]
     #[ignore = "Downloads a real published package; requires network and Arch pacman"]
     fn live_package_is_verified_without_installation() {

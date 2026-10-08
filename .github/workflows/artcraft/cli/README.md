@@ -15,24 +15,24 @@ package through pacman. Pacman shows its normal transaction confirmation.
 Only Linux x86_64 is supported by the current builds.
 
 ```sh
-artcraft list
-artcraft info designcraft
-artcraft info designcraft --changelog
-artcraft install designcraft photocraft
-artcraft install all
-artcraft updates
-artcraft upgrade
-artcraft upgrade designcraft
-artcraft self-update
-artcraft remove designcraft
+artcraft -l
+artcraft -s designcraft
+artcraft -sn designcraft
+artcraft -i designcraft photocraft
+artcraft -ia
+artcraft -c
+artcraft -u
+artcraft -u designcraft
+artcraft -U
+artcraft -r designcraft
 ```
 
-`upgrade` without arguments updates installed creative apps and Artcraft itself.
-It does not install apps you have not selected. `install all` installs the seven
+`-u` without arguments updates installed creative apps and Artcraft itself.
+It does not install apps you have not selected. `-ia` installs the seven
 creative apps only. Published releases must be available for every selected app;
 missing releases are reported before installation begins.
 
-`list` and `info` cache release metadata for five minutes. `--refresh` forces a
+`-l` and `-s` cache release metadata for five minutes. `-f` forces a
 fresh check. Installation, update checks and upgrades always check current
 release metadata. An optional `GH_TOKEN` or `GITHUB_TOKEN` increases GitHub's
 API request limit; no key is required for this public repository. Tokens are
@@ -43,3 +43,6 @@ before invoking pacman. Checksums protect download integrity; releases are not
 yet cryptographically signed. App files and installed versions remain managed
 by pacman, including apps installed manually from this repository's packages.
 No daemon, background service or separate installation database is created.
+
+`-U` upgrades Artcraft itself; `-u` upgrades Artcraft and installed apps.
+Pacman confirmation always reads from `/dev/tty`, including piped installation.

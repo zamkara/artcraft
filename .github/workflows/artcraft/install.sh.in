@@ -25,5 +25,5 @@ checksum_count=$(awk '$2 == "artcraft-linux-x86_64" {n++} END {print n+0}' "$wor
 [[ "$checksum_count" == 1 ]] || { echo 'Missing or ambiguous bootstrap checksum.' >&2; exit 1; }
 (cd "$workspace" && awk '$2 == "artcraft-linux-x86_64"' SHA256SUMS | sha256sum --check --strict)
 chmod 700 "$workspace/artcraft-linux-x86_64"
-"$workspace/artcraft-linux-x86_64" self-install --release "$release"
-echo 'Artcraft installed. Run: artcraft list'
+"$workspace/artcraft-linux-x86_64" -B "$release" </dev/tty
+echo 'Artcraft installed. Run: artcraft -l'
