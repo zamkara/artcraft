@@ -10,7 +10,7 @@ on:
         description: Application to check
         type: choice
         default: all
-        options: [all, designcraft, effectcraft, pdfcraft, lightcraft, filmcraft, vectorcraft, photocraft]
+        options: [all, artcraft, designcraft, effectcraft, pdfcraft, lightcraft, filmcraft, vectorcraft, photocraft]
   push:
     branches: [main]
     paths: ['.github/workflows/**']
@@ -36,11 +36,66 @@ jobs:
         run: |
           python3 -m unittest discover -s .github/workflows/artcraft -p 'test_*.py' -v
           bash -n .github/workflows/artcraft/build.sh
+          bash -n .github/workflows/artcraft/manager-build.sh
+          bash -n .github/workflows/artcraft/install.sh.in
+          python3 -m py_compile .github/workflows/artcraft/manager_prepare.py
           python3 -m py_compile .github/workflows/artcraft/prepare.py .github/workflows/artcraft/publish.py .github/workflows/artcraft/validate.py
           test "$(git ls-tree --name-only HEAD | sort | tr '\n' ' ')" = '.github LICENSE '
 
-  package:
+  manager:
     needs: validate
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Prepare Artcraft CLI
+        id: manager
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/workflows/artcraft/manager_prepare.py --directory .github/workflows/.build/artcraft
+      - name: Restore Rust cache
+        if: steps.manager.outputs.changed == 'true'
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809
+        with:
+          path: .github/workflows/.build/artcraft/.cache
+          key: arch-manager-${{ steps.manager.outputs.recipe }}-${{ steps.manager.outputs.tag }}
+          restore-keys: arch-manager-
+      - name: Build and verify native CLI
+        if: steps.manager.outputs.changed == 'true'
+        run: |
+          docker run --rm \
+            --mount "type=bind,src=$GITHUB_WORKSPACE/.github/workflows/.build/artcraft,dst=/build" \
+            --mount "type=bind,src=$GITHUB_WORKSPACE/.github/workflows/artcraft,dst=/recipe,readonly" \
+            archlinux:base-devel bash /recipe/manager-build.sh /build
+      - name: Preserve CLI artifacts
+        if: steps.manager.outputs.changed == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: artcraft-cli-${{ steps.manager.outputs.tag }}
+          include-hidden-files: true
+          if-no-files-found: error
+          path: |
+            .github/workflows/.build/artcraft/*.pkg.tar.zst
+            .github/workflows/.build/artcraft/artcraft-linux-x86_64
+            .github/workflows/.build/artcraft/install.sh
+            .github/workflows/.build/artcraft/PKGBUILD
+            .github/workflows/.build/artcraft/.SRCINFO
+            .github/workflows/.build/artcraft/upstream.json
+            .github/workflows/.build/artcraft/SHA256SUMS
+            .github/workflows/.build/artcraft/CHANGELOG.md
+      - name: Publish CLI and installer
+        if: steps.manager.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/workflows/artcraft/publish.py .github/workflows/.build/artcraft --repository "$GITHUB_REPOSITORY" --target "$GITHUB_SHA"
+
+  package:
+    needs: [validate, manager]
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 120
@@ -48,7 +103,7 @@ jobs:
       contents: write
     strategy:
       fail-fast: false
-      max-parallel: 3
+      max-parallel: 7
       matrix:
         app: [designcraft, effectcraft, pdfcraft, lightcraft, filmcraft, vectorcraft, photocraft]
     steps:

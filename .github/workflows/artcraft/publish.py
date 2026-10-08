@@ -10,6 +10,7 @@ def export_assets(root,directory,state):
     # GitHub renames leading-dot asset names; retain the content as SRCINFO.
     srcinfo=directory/'SRCINFO';srcinfo.write_bytes((root/'.SRCINFO').read_bytes())
     assets=[root/state['package'],root/'PKGBUILD',srcinfo,root/'upstream.json',root/'CHANGELOG.md']
+    if state.get('app')=='artcraft':assets.extend([root/'artcraft-linux-x86_64',root/'install.sh'])
     checksums=directory/'SHA256SUMS'
     with checksums.open('w') as stream:
         for path in assets:
@@ -26,7 +27,9 @@ def publish(root,repository,target,directory):
         if not path.is_file():raise SystemExit(f'Missing release asset: {path}')
     subprocess.run(['sha256sum','--check','SHA256SUMS'],cwd=root,check=True)
     assets=export_assets(root,directory,state)
-    notes=directory/'RELEASE_NOTES.md';notes.write_text(release_notes((root/'CHANGELOG.md').read_text(),repository,tag))
+    notes=directory/'RELEASE_NOTES.md'
+    install=f'Install Artcraft:\n\n```sh\ncurl -fsSL https://github.com/{repository}/releases/latest/download/install.sh | bash\n```\n\n'
+    notes.write_text(install+release_notes((root/'CHANGELOG.md').read_text(),repository,tag))
     def gh(*cmd):return subprocess.check_output(['gh',*cmd],text=True)
     try:release=json.loads(gh('release','view',tag,'--repo',repository,'--json','isDraft,assets,url'))
     except subprocess.CalledProcessError:release=None
@@ -45,7 +48,7 @@ def publish(root,repository,target,directory):
     actual={x['name']:x['size'] for x in release['assets']}
     for path in assets:
         if actual.get(path.name)!=path.stat().st_size:raise SystemExit(f'Incomplete asset upload: {path.name}')
-    gh('release','edit',tag,'--repo',repository,'--draft=false','--latest=false')
+    gh('release','edit',tag,'--repo',repository,'--draft=false','--latest='+('true' if state['app']=='artcraft' else 'false'))
     print(gh('release','view',tag,'--repo',repository,'--json','url','--jq','.url').strip())
 
 def main():

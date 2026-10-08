@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+repository='zamkara/artcraft'
+release='@RELEASE_TAG@'
+if [[ "$(uname -s)" != Linux || ! -f /etc/arch-release ]]; then
+  echo 'Artcraft requires Arch Linux or an Arch derivative such as Omarchy.' >&2
+  exit 1
+fi
+if [[ "$(uname -m)" != x86_64 ]]; then
+  echo 'Only x86_64 packages are currently available.' >&2
+  exit 1
+fi
+for tool in curl sha256sum mktemp; do
+  command -v "$tool" >/dev/null || { echo "Required command not found: $tool" >&2; exit 1; }
+done
+workspace=$(mktemp -d -t artcraft-install.XXXXXXXX)
+trap 'rm -rf "$workspace"' EXIT
+base="https://github.com/$repository/releases/download/$release"
+curl --fail --silent --show-error --location --retry 3 --connect-timeout 10 --max-time 180 \
+  --proto '=https' --proto-redir '=https' "$base/artcraft-linux-x86_64" -o "$workspace/artcraft-linux-x86_64"
+curl --fail --silent --show-error --location --retry 3 --connect-timeout 10 --max-time 30 \
+  --proto '=https' --proto-redir '=https' "$base/SHA256SUMS" -o "$workspace/SHA256SUMS"
+# Only the bootstrap binary is present; reject missing or duplicate checksums.
+checksum_count=$(awk '$2 == "artcraft-linux-x86_64" {n++} END {print n+0}' "$workspace/SHA256SUMS")
+[[ "$checksum_count" == 1 ]] || { echo 'Missing or ambiguous bootstrap checksum.' >&2; exit 1; }
+(cd "$workspace" && awk '$2 == "artcraft-linux-x86_64"' SHA256SUMS | sha256sum --check --strict)
+chmod 700 "$workspace/artcraft-linux-x86_64"
+"$workspace/artcraft-linux-x86_64" self-install --release "$release"
+echo 'Artcraft installed. Run: artcraft list'
