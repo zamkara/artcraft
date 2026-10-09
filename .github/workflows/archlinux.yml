@@ -34,7 +34,15 @@ jobs:
           bash -n .github/workflows/artcraft/install.sh.in
           python3 -m py_compile .github/workflows/artcraft/manager_prepare.py .github/workflows/artcraft/suite_publish.py
           python3 -m py_compile .github/workflows/artcraft/prepare.py .github/workflows/artcraft/publish.py .github/workflows/artcraft/validate.py
-          test "$(git ls-tree --name-only HEAD | sort | tr '\n' ' ')" = '.github LICENSE '
+          python3 - <<'PYROOT'
+          import subprocess
+          entries = set(subprocess.check_output(['git', 'ls-tree', '--name-only', 'HEAD'], text=True).splitlines())
+          missing = {'.github', 'LICENSE'} - entries
+          unexpected = entries - {'.github', 'LICENSE', 'readme.md', 'README.md'}
+          if missing or unexpected:
+              raise SystemExit(f"Invalid repository root: missing={sorted(missing)}, unexpected={sorted(unexpected)}")
+          print('Repository root verified.')
+          PYROOT
 
   manager:
     needs: validate

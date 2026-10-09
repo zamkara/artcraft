@@ -31,6 +31,6 @@ Full original upstream changelogs are separate APP.CHANGELOG.md assets. Release
 notes link them and include original excerpts within GitHub's body-size limit.
 Snapshots use upstream-version.rCOMMITTIMESTAMP.gCOMMIT and packaging changes
 increment pkgrel. Builds, caches and source archives remain disposable runner
-files, not repository content. The root contains only LICENSE and .github.
+files, not repository content. The root contains LICENSE, .github, and the repository README.
 
 See [CLI usage](cli/README.md).
