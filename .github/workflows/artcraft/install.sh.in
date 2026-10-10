@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-repository='zamkara/artcraft'
+repository='zamkara/storytold'
 release='@RELEASE_TAG@'
 if [[ "$(uname -s)" != Linux || ! -f /etc/arch-release ]]; then
   echo 'Artcraft requires Arch Linux or an Arch derivative such as Omarchy.' >&2

@@ -1,24 +1,24 @@
-# Artcraft complete creative suite
+# Storytold native application suite
 
-The workflow checks seven upstream repositories and Artcraft's own Rust source
+The workflow checks all registered upstream applications and Artcraft's own Rust source
 at 20:17 UTC / 03:17 Asia/Jakarta every day. Manual dispatch and relevant pushes
 also run the complete pipeline. Pull requests run validation.
 
-All eight native Arch packages are built independently in disposable Arch Linux
+All registered native Arch packages and the Artcraft manager are built independently in disposable Arch Linux
 containers. Unchanged upstream commits and packaging inputs skip compilation.
 Failed builds never advance the published checkpoints. Source snapshots, fonts,
 and lockfiles come from pinned upstream revisions; no upstream repository or
 vendored dependencies are committed here.
 
 One final job publishes one complete suite release only after all build jobs
-succeed. It includes Artcraft, all seven app packages, the Artcraft binary,
+succeed. It includes Artcraft, every registered app package, the Artcraft binary,
 installer, per-app PKGBUILD/SRCINFO/state/changelog files, suite.json, and shared
 SHA256SUMS. Unchanged verified packages are carried forward from earlier releases.
 The complete asset set is uploaded and checked as a draft before it becomes
 public and latest. A partial suite is never published.
 
 ```sh
-curl -fsSL https://github.com/zamkara/artcraft/releases/latest/download/install.sh | bash
+curl -fsSL https://github.com/zamkara/storytold/releases/latest/download/install.sh | bash
 artcraft -ia
 ```
 

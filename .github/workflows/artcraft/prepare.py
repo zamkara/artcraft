@@ -1,6 +1,7 @@
 """Pin upstream HEAD, skip already published inputs, and generate a PKGBUILD."""
 import argparse,base64,datetime,hashlib,json,os,pathlib,re,shlex,time,tomllib
 import urllib.error,urllib.parse,urllib.request
+from registry import load_apps
 HERE=pathlib.Path(__file__).resolve().parent
 API='https://api.github.com/'
 
@@ -45,11 +46,20 @@ def previous(repo,app):
             return state
     return None
 
-def recipe_hash():
-    h=hashlib.sha256()
-    for name in ('PKGBUILD.in','apps.json','build.sh','validate.py'):
+def recipe_hash(config=None):
+    config=config or {}
+    h=hashlib.sha256(json.dumps(config,sort_keys=True).encode())
+    template='tauri.PKGBUILD.in' if config.get('kind')=='tauri' else 'PKGBUILD.in'
+    for name in (template,'build.sh','validate.py'):
         h.update(name.encode());h.update((HERE/name).read_bytes())
     return h.hexdigest()
+
+def build_metadata(config,cargo,repo,sha):
+    binary=config.get('binary',repo.split('/')[-1])
+    if config.get('kind')=='tauri':
+        tauri=json.loads(content(repo,config['crate_path']+'/tauri.conf.json',sha))
+        return str(tauri['version']),str(tauri['identifier']),''
+    return str(cargo['workspace']['package']['version']),'ai.storyteller.'+binary,font_commit(content(repo,'.github/workflows/release.yml',sha))
 
 def font_commit(workflow):
     if 'repository: storytold/craft-fonts' not in workflow:return ''
@@ -106,13 +116,13 @@ def output(values):
     print(json.dumps(values))
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('app');parser.add_argument('--repository',default=os.environ.get('GITHUB_REPOSITORY','zamkara/artcraft'));parser.add_argument('--directory',required=True)
-    args=parser.parse_args();apps=json.loads((HERE/'apps.json').read_text())
+    parser=argparse.ArgumentParser();parser.add_argument('app');parser.add_argument('--repository',default=os.environ.get('GITHUB_REPOSITORY','zamkara/storytold'));parser.add_argument('--directory',required=True)
+    args=parser.parse_args();apps=load_apps()
     config=apps[args.app];repo=config['repo'];directory=pathlib.Path(args.directory);directory.mkdir(parents=True,exist_ok=True)
     info=api(f'repos/{repo}');commit=api(f'repos/{repo}/commits/{urllib.parse.quote(info["default_branch"],safe="")}')
-    sha=commit['sha'];cargo=tomllib.loads(content(repo,'Cargo.toml',sha));version=cargo['workspace']['package']['version']
-    workflow=content(repo,'.github/workflows/release.yml',sha);fonts=font_commit(workflow)
-    state={'app':args.app,'upstream':repo,'branch':info['default_branch'],'commit':sha,'version':version,'commit_date':commit['commit']['committer']['date'],'fonts_commit':fonts,'recipe_sha256':recipe_hash(),'architecture':'x86_64'}
+    sha=commit['sha'];cargo=tomllib.loads(content(repo,'Cargo.toml',sha))
+    version,app_id,fonts=build_metadata(config,cargo,repo,sha)
+    state={'app':args.app,'upstream':repo,'branch':info['default_branch'],'commit':sha,'version':version,'commit_date':commit['commit']['committer']['date'],'fonts_commit':fonts,'recipe_sha256':recipe_hash(config),'architecture':'x86_64','kind':config.get('kind','craft'),'binary':config.get('binary',args.app),'cli':config.get('cli',True),'mime':config.get('mime',True),'app_id':app_id}
     old=previous(args.repository,args.app)
     if same_inputs(old,state):
         output({'changed':'false','app':args.app});return
@@ -124,10 +134,21 @@ def main():
     if fonts:
         source,checksum=download_archive('storytold/craft-fonts',fonts,directory,f'craft-fonts-{fonts}.tar.gz');sources.append(source);checksums.append(checksum)
     # Follow official build features without adding a distro-specific fork.
-    linux_script=content(repo,'packaging/linux/package.sh',sha)
+    linux_script=content(repo,'packaging/linux/package.sh',sha) if config.get('kind')!='tauri' else ''
     features=' --features heif' if '--features heif' in linux_script else ''
     replacements={'APP':args.app,'PKGVER':pkgver,'PKGREL':str(pkgrel),'DESCRIPTION':shlex.quote(config['description']),'URL':shlex.quote('https://github.com/'+repo),'FONT_LICENSE':" 'OFL-1.1'" if fonts else '', 'AUDIO':" 'alsa-lib'" if config['audio'] else '', 'SHA':sha,'FONT_SHA':shlex.quote(fonts),'UPSTREAM_VERSION':shlex.quote(version),'BUILD_DATE':state['commit_date'][:10],'SOURCES':'\n        '.join(shlex.quote(x) for x in sources),'CHECKSUMS':'\n            '.join(shlex.quote(x) for x in checksums),'ENV_PREFIX':args.app.upper(),'FEATURES':features}
-    recipe=(HERE/'PKGBUILD.in').read_text()
+    binary=config.get('binary',args.app)
+    replacements.update(
+        SOURCE_DIR=repo.split('/')[-1], BINARY=binary, APP_ID=shlex.quote(app_id),
+        CARGO_PACKAGES='-p '+shlex.quote(binary)+(' -p '+shlex.quote(binary+'-cli') if state['cli'] else ''),
+        CLI_CHECK=f'  "$CARGO_TARGET_DIR/release/{binary}-cli" --version' if state['cli'] else '  :',
+        CLI_INSTALL=f'  install -Dm755 "$CARGO_TARGET_DIR/release/{binary}-cli" "$pkgdir/usr/bin/{args.app}-cli"' if state['cli'] else '  :',
+        MIME_INSTALL='  install -Dm644 "packaging/linux/$app_id.mime.xml" "$pkgdir/usr/share/mime/packages/$app_id.xml"' if state['mime'] else '  :',
+        ENV_PREFIX=config.get('env_prefix',args.app.upper().replace('-','_')),
+        DISPLAY_NAME=config.get('display_name',args.app), CRATE_PATH=config.get('crate_path',''),
+        LICENSES="'MIT' 'Apache-2.0'" if args.app!='artcraftx' else "'LicenseRef-Upstream-Unspecified'")
+    template='tauri.PKGBUILD.in' if config.get('kind')=='tauri' else 'PKGBUILD.in'
+    recipe=(HERE/template).read_text()
     for key,value in replacements.items():recipe=recipe.replace('@'+key+'@',value)
     (directory/'PKGBUILD').write_text(recipe)
     (directory/'upstream.json').write_text(json.dumps(state,indent=2)+'\n')

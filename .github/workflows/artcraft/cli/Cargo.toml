@@ -3,9 +3,9 @@ name = "artcraft"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
-description = "Install and update native Artcraft creative apps on Arch Linux"
+description = "Install and update native Storytold applications on Arch Linux"
 license-file = "../../../../LICENSE"
-repository = "https://github.com/zamkara/artcraft"
+repository = "https://github.com/zamkara/storytold"
 
 [dependencies]
 anyhow = "1.0"

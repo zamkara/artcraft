@@ -36,26 +36,26 @@ _build_env() {
 }
 
 build() {
-  cd "$srcdir/$pkgname-$_commit"
+  cd "$srcdir/@SOURCE_DIR@-$_commit"
   _build_env
-  cargo build --release --locked -p "$pkgname" -p "$pkgname-cli"@FEATURES@
+  cargo build --release --locked @CARGO_PACKAGES@@FEATURES@
 }
 
 check() {
-  cd "$srcdir/$pkgname-$_commit"
+  cd "$srcdir/@SOURCE_DIR@-$_commit"
   _build_env
-  "$CARGO_TARGET_DIR/release/$pkgname-cli" --version
+@CLI_CHECK@
   desktop-file-validate "packaging/linux/ai.storyteller.$pkgname.desktop"
 }
 
 package() {
-  cd "$srcdir/$pkgname-$_commit"
+  cd "$srcdir/@SOURCE_DIR@-$_commit"
   _build_env
-  local app_id="ai.storyteller.$pkgname" file font
-  install -Dm755 "$CARGO_TARGET_DIR/release/$pkgname" "$pkgdir/usr/bin/$pkgname"
-  install -Dm755 "$CARGO_TARGET_DIR/release/$pkgname-cli" "$pkgdir/usr/bin/$pkgname-cli"
+  local app_id=@APP_ID@ file font
+  install -Dm755 "$CARGO_TARGET_DIR/release/@BINARY@" "$pkgdir/usr/bin/$pkgname"
+@CLI_INSTALL@
   install -Dm644 "packaging/linux/$app_id.desktop" "$pkgdir/usr/share/applications/$app_id.desktop"
-  install -Dm644 "packaging/linux/$app_id.mime.xml" "$pkgdir/usr/share/mime/packages/$app_id.xml"
+@MIME_INSTALL@
   install -d "$pkgdir/usr/share/metainfo" "$pkgdir/usr/share/icons"
   sed -e "s/@VERSION@/$_upstream_version/g" -e "s/@DATE@/$_build_date/g" \
     "packaging/linux/$app_id.metainfo.xml.in" > "$pkgdir/usr/share/metainfo/$app_id.metainfo.xml"

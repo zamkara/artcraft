@@ -1,7 +1,8 @@
-"""Publish all eight verified packages together; never expose a partial suite."""
+"""Publish all supported verified packages together; never expose a partial suite."""
 import argparse,hashlib,json,os,pathlib,subprocess,tempfile
 from prepare import api,request,releases,HERE
-APPS=tuple(json.loads((HERE/'apps.json').read_text()))+('artcraft',)
+from registry import load_apps
+APPS=tuple(load_apps())+('artcraft',)
 
 def digest(path):
     value=hashlib.sha256()
@@ -55,10 +56,10 @@ def collect(artifacts,directory,repository):
 def publish(artifacts,repository,target,directory):
     if not any(artifacts.rglob('upstream.json')):
         for app in APPS:remote_state(repository,app)
-        print('All eight packages are current; no downloads or release needed');return
+        print(f'All {len(APPS)} packages are current; no downloads or release needed');return
     states,changed=collect(artifacts,directory,repository)
     if not changed:
-        print('All eight packages are current; suite release skipped');return
+        print(f'All {len(APPS)} packages are current; suite release skipped');return
     run=os.environ['GITHUB_RUN_ID']
     tag=f'artcraft-suite-r{run}.g{target[:12]}'
     (directory/'install.sh').write_text((HERE/'install.sh.in').read_text().replace('@RELEASE_TAG@',tag))
@@ -68,7 +69,7 @@ def publish(artifacts,repository,target,directory):
     with (directory/'SHA256SUMS').open('w') as stream:
         for path in paths:stream.write(f'{digest(path)}  {path.name}\n')
     paths.append(directory/'SHA256SUMS')
-    notes=f'Artcraft and all seven native creative apps for Arch Linux and Omarchy.\n\n```sh\ncurl -fsSL https://github.com/{repository}/releases/latest/download/install.sh | bash\nartcraft -ia\n```\n\n'
+    notes=f'Artcraft CLI and all supported Storytold native applications for Arch Linux and Omarchy.\n\n```sh\ncurl -fsSL https://github.com/{repository}/releases/latest/download/install.sh | bash\nartcraft -ia\n```\n\n'
     for app,state in states.items():
         notes+=f"- **{app}** {state['pkgver']}-{state['pkgrel']} · [Complete changelog](https://github.com/{repository}/releases/download/{tag}/{app}.CHANGELOG.md)\n"
     for app in APPS:
@@ -86,7 +87,7 @@ def publish(artifacts,repository,target,directory):
         if {p.name for p in paths}<={a['name'] for a in release['assets']}:
             print('Already published:',release['url']);return
         raise RuntimeError('Refusing to modify an incomplete public suite')
-    if not release:gh('release','create',tag,'--repo',repository,'--target',target,'--title','Artcraft · Complete creative suite','--draft','--notes-file',str(notesfile))
+    if not release:gh('release','create',tag,'--repo',repository,'--target',target,'--title','Storytold · Complete native application suite','--draft','--notes-file',str(notesfile))
     else:gh('release','edit',tag,'--repo',repository,'--notes-file',str(notesfile))
     gh('release','upload',tag,'--repo',repository,'--clobber',*[str(p) for p in paths])
     actual=json.loads(gh('release','view',tag,'--repo',repository,'--json','assets'))

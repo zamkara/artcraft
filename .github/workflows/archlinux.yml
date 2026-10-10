@@ -22,14 +22,20 @@ jobs:
   validate:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    outputs:
+      apps: ${{ steps.catalog.outputs.apps }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
+      - name: Validate application registry
+        id: catalog
+        run: python3 .github/workflows/artcraft/registry.py >> "$GITHUB_OUTPUT"
       - name: Check workflow helpers and release planning
         run: |
           python3 -m unittest discover -s .github/workflows/artcraft -p 'test_*.py' -v
           bash -n .github/workflows/artcraft/build.sh
+          bash -n .github/workflows/artcraft/tauri.PKGBUILD.in
           bash -n .github/workflows/artcraft/manager-build.sh
           bash -n .github/workflows/artcraft/install.sh.in
           python3 -m py_compile .github/workflows/artcraft/manager_prepare.py .github/workflows/artcraft/suite_publish.py
@@ -102,7 +108,7 @@ jobs:
       fail-fast: false
       max-parallel: 7
       matrix:
-        app: [designcraft, effectcraft, pdfcraft, lightcraft, filmcraft, vectorcraft, photocraft]
+        app: ${{ fromJson(needs.validate.outputs.apps) }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -119,7 +125,9 @@ jobs:
         with:
           path: .github/workflows/.build/${{ matrix.app }}/.cache
           key: arch-x86_64-${{ matrix.app }}-${{ steps.upstream.outputs.recipe }}-${{ steps.upstream.outputs.tag }}
-          restore-keys: arch-x86_64-${{ matrix.app }}-${{ steps.upstream.outputs.recipe }}-
+          restore-keys: |
+            arch-x86_64-${{ matrix.app }}-${{ steps.upstream.outputs.recipe }}-
+            arch-x86_64-${{ matrix.app }}-
       - name: Build and validate with Arch makepkg
         if: steps.upstream.outputs.changed == 'true'
         env:

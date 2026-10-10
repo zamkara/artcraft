@@ -1,9 +1,93 @@
 {
-  "designcraft": {"repo": "storytold/designcraft", "description": "Native page layout and publishing application", "audio": false},
-  "effectcraft": {"repo": "storytold/effectcraft", "description": "Native motion graphics and visual effects compositor", "audio": true},
-  "pdfcraft": {"repo": "storytold/pdfcraft", "description": "Native PDF editor and document tools", "audio": false},
-  "lightcraft": {"repo": "storytold/lightcraft", "description": "Native photo development and catalog application", "audio": false},
-  "filmcraft": {"repo": "storytold/filmcraft", "description": "Native video editing application", "audio": true},
-  "vectorcraft": {"repo": "storytold/vectorcraft", "description": "Native vector illustration application", "audio": false},
-  "photocraft": {"repo": "storytold/photocraft", "description": "Native raster image editing application", "audio": false}
+  "designcraft": {
+    "repo": "storytold/designcraft",
+    "description": "Native page layout and publishing application",
+    "audio": false
+  },
+  "effectcraft": {
+    "repo": "storytold/effectcraft",
+    "description": "Native motion graphics and visual effects compositor",
+    "audio": true
+  },
+  "pdfcraft": {
+    "repo": "storytold/pdfcraft",
+    "description": "Native PDF editor and document tools",
+    "audio": false
+  },
+  "lightcraft": {
+    "repo": "storytold/lightcraft",
+    "description": "Native photo development and catalog application",
+    "audio": false
+  },
+  "filmcraft": {
+    "repo": "storytold/filmcraft",
+    "description": "Native video editing application",
+    "audio": true
+  },
+  "vectorcraft": {
+    "repo": "storytold/vectorcraft",
+    "description": "Native vector illustration application",
+    "audio": false
+  },
+  "photocraft": {
+    "repo": "storytold/photocraft",
+    "description": "Native raster image editing application",
+    "audio": false
+  },
+  "cadcraft": {
+    "repo": "storytold/cadcraft",
+    "description": "Native computer-aided design and drafting application",
+    "audio": false
+  },
+  "deckcraft": {
+    "repo": "storytold/deckcraft",
+    "description": "Native presentation and slide-show application",
+    "audio": true
+  },
+  "gridcraft": {
+    "repo": "storytold/gridcraft",
+    "description": "Native spreadsheet and data application",
+    "audio": false
+  },
+  "soundcraft": {
+    "repo": "storytold/soundcraft",
+    "description": "Native audio recording, editing and mixing workstation",
+    "audio": true
+  },
+  "wordcraft": {
+    "repo": "storytold/wordcraft",
+    "description": "Native word processing and document design application",
+    "audio": false
+  },
+  "artcraft-launcher": {
+    "repo": "storytold/craft-launcher",
+    "description": "Official graphical launcher for the Craft App Suite",
+    "audio": false,
+    "binary": "artcraft-launcher",
+    "cli": false,
+    "mime": false,
+    "env_prefix": "ARTCRAFT_LAUNCHER"
+  },
+  "artcraft-studio": {
+    "repo": "storytold/artcraft",
+    "description": "ArtCraft Studio AI image, video and interactive creation application",
+    "audio": false,
+    "kind": "tauri",
+    "binary": "artcraft",
+    "crate_path": "crates/desktop/artcraft",
+    "display_name": "ArtCraft Studio",
+    "cli": false,
+    "mime": false
+  },
+  "artcraftx": {
+    "repo": "storytold/artcraftx",
+    "description": "ArtCraft-X AI image, video and interactive creation application",
+    "audio": false,
+    "kind": "tauri",
+    "binary": "artcraftx",
+    "crate_path": "crates/artcraftx",
+    "display_name": "ArtCraft-X",
+    "cli": false,
+    "mime": false
+  }
 }

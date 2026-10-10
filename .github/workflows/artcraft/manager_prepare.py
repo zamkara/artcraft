@@ -21,7 +21,7 @@ def main():
     pkgver=pkgversion(version,stamp,sha);tag=f'artcraft-{pkgver}-1'
     source,checksum=download_archive(repo,sha,directory,f'artcraft-{sha}.tar.gz')
     template=(HERE/'manager.PKGBUILD.in').read_text()
-    for key,value in {'PKGVER':pkgver,'SHA':sha,'SOURCE':shlex.quote(source),'CHECKSUM':checksum}.items():template=template.replace('@'+key+'@',value)
+    for key,value in {'PKGVER':pkgver,'SHA':sha,'SOURCE':shlex.quote(source),'CHECKSUM':checksum,'SOURCE_DIR':repo.split('/')[-1]}.items():template=template.replace('@'+key+'@',value)
     (directory/'PKGBUILD').write_text(template)
     (directory/'install.sh').write_text((HERE/'install.sh.in').read_text().replace('@RELEASE_TAG@',tag))
     state={'app':'artcraft','upstream':repo,'commit':sha,'version':version,'pkgver':pkgver,'pkgrel':1,'architecture':'x86_64','manager_fingerprint':recipe}

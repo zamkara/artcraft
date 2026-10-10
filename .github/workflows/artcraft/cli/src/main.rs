@@ -12,14 +12,14 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-const REPOSITORY: &str = "zamkara/artcraft";
-const API: &str = "https://api.github.com/repos/zamkara/artcraft";
+const REPOSITORY: &str = "zamkara/storytold";
+const API: &str = "https://api.github.com/repos/zamkara/storytold";
 const MAX_PACKAGE: u64 = 2 * 1024 * 1024 * 1024;
 
 #[derive(Parser)]
 #[command(
     version = option_env!("ARTCRAFT_PKGVER").unwrap_or(env!("CARGO_PKG_VERSION")),
-    about = "Install and update native Artcraft creative apps on Arch Linux",
+    about = "Install and update native Storytold applications on Arch Linux",
     group(clap::ArgGroup::new("action").args(["list", "info", "install", "updates", "upgrade", "remove", "self_update", "bootstrap"]))
 )]
 struct Cli {
@@ -217,7 +217,10 @@ fn get(client: &Client, url: &str, limit: u64) -> Result<Vec<u8>> {
 fn asset_url<'a>(asset: &'a Asset, tag: &str) -> Result<&'a str> {
     let prefix = format!("https://github.com/{REPOSITORY}/releases/download/{tag}/");
     ensure!(
-        asset.browser_download_url.starts_with(&prefix),
+        asset.browser_download_url.starts_with(&prefix)
+            || asset.browser_download_url.starts_with(&format!(
+                "https://github.com/zamkara/artcraft/releases/download/{tag}/"
+            )),
         "Release asset has an unexpected download URL"
     );
     ensure!(
@@ -585,7 +588,7 @@ fn main_result() -> Result<()> {
         Command::List => {
             if !known.keys().any(|name| catalog.contains_key(name)) {
                 println!("No creative-app packages have been published yet.");
-                println!("Releases: https://github.com/zamkara/artcraft/releases");
+                println!("Releases: https://github.com/zamkara/storytold/releases");
                 return Ok(());
             }
             println!("{:<15} {:<42} AVAILABLE", "APP", "INSTALLED");
@@ -694,7 +697,7 @@ fn main() -> ExitCode {
 mod tests {
     use super::*;
     fn release() -> Release {
-        Release { tag_name: "designcraft-1.0-1".into(), html_url: "https://github.com/zamkara/artcraft/releases/tag/designcraft-1.0-1".into(), body: None, draft: false, prerelease: false, published_at: Some("2026-10-08T00:00:00Z".into()), assets: vec![Asset { name: "designcraft-1.0-1-x86_64.pkg.tar.zst".into(), browser_download_url: "https://github.com/zamkara/artcraft/releases/download/designcraft-1.0-1/designcraft-1.0-1-x86_64.pkg.tar.zst".into(), size: 1 }, Asset { name: "SHA256SUMS".into(), browser_download_url: "https://github.com/zamkara/artcraft/releases/download/designcraft-1.0-1/SHA256SUMS".into(), size: 70 }] }
+        Release { tag_name: "designcraft-1.0-1".into(), html_url: "https://github.com/zamkara/storytold/releases/tag/designcraft-1.0-1".into(), body: None, draft: false, prerelease: false, published_at: Some("2026-10-08T00:00:00Z".into()), assets: vec![Asset { name: "designcraft-1.0-1-x86_64.pkg.tar.zst".into(), browser_download_url: "https://github.com/zamkara/storytold/releases/download/designcraft-1.0-1/designcraft-1.0-1-x86_64.pkg.tar.zst".into(), size: 1 }, Asset { name: "SHA256SUMS".into(), browser_download_url: "https://github.com/zamkara/storytold/releases/download/designcraft-1.0-1/SHA256SUMS".into(), size: 70 }] }
     }
 
     #[test]
@@ -742,7 +745,7 @@ mod tests {
     fn suite_release_exposes_each_published_package() {
         let mut release = release();
         release.tag_name = "artcraft-suite-20261008".into();
-        release.assets.push(Asset { name: "photocraft-2.0-1-x86_64.pkg.tar.zst".into(), browser_download_url: "https://github.com/zamkara/artcraft/releases/download/artcraft-suite-20261008/photocraft-2.0-1-x86_64.pkg.tar.zst".into(), size: 1 });
+        release.assets.push(Asset { name: "photocraft-2.0-1-x86_64.pkg.tar.zst".into(), browser_download_url: "https://github.com/zamkara/storytold/releases/download/artcraft-suite-20261008/photocraft-2.0-1-x86_64.pkg.tar.zst".into(), size: 1 });
         for name in ["designcraft", "photocraft"] {
             assert!(available(&release, &BTreeSet::from([name.to_string()])).is_some());
         }

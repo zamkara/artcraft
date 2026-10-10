@@ -1,9 +1,9 @@
 pkgname=artcraft
 pkgver=@PKGVER@
 pkgrel=1
-pkgdesc='Install and update native Artcraft creative apps on Arch Linux'
+pkgdesc='Install and update native Storytold applications on Arch Linux'
 arch=('x86_64')
-url='https://github.com/zamkara/artcraft'
+url='https://github.com/zamkara/storytold'
 license=('LicenseRef-Almatera-Incubator')
 depends=('glibc' 'gcc-libs' 'pacman' 'sudo' 'ca-certificates')
 makedepends=('rust')
@@ -20,12 +20,12 @@ _build_env() {
   export ARTCRAFT_PKGVER="$pkgver-$pkgrel"
 }
 build() {
-  cd "$srcdir/artcraft-$_commit/.github/workflows/artcraft/cli"
+  cd "$srcdir/@SOURCE_DIR@-$_commit/.github/workflows/artcraft/cli"
   _build_env
   cargo build --release --locked
 }
 check() {
-  cd "$srcdir/artcraft-$_commit/.github/workflows/artcraft/cli"
+  cd "$srcdir/@SOURCE_DIR@-$_commit/.github/workflows/artcraft/cli"
   _build_env
   cargo test --release --locked
   "$CARGO_TARGET_DIR/release/artcraft" --help
@@ -34,6 +34,6 @@ check() {
 package() {
   _build_env
   install -Dm755 "$CARGO_TARGET_DIR/release/artcraft" "$pkgdir/usr/bin/artcraft"
-  install -Dm644 "$srcdir/artcraft-$_commit/LICENSE" "$pkgdir/usr/share/licenses/artcraft/LICENSE"
-  install -Dm644 "$srcdir/artcraft-$_commit/.github/workflows/artcraft/cli/README.md" "$pkgdir/usr/share/doc/artcraft/README.md"
+  install -Dm644 "$srcdir/@SOURCE_DIR@-$_commit/LICENSE" "$pkgdir/usr/share/licenses/artcraft/LICENSE"
+  install -Dm644 "$srcdir/@SOURCE_DIR@-$_commit/.github/workflows/artcraft/cli/README.md" "$pkgdir/usr/share/doc/artcraft/README.md"
 }

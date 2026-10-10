@@ -1,6 +1,28 @@
-> **Unofficial Arch Linux builds of [ArtCraft](https://github.com/storytold/artcraft).**
-> This repository only builds and publishes Arch Linux releases of the upstream project, which does not currently provide them.
-> It is not affiliated with or endorsed by the upstream authors. For the source code, issues, and development, go to [storytold/artcraft](https://github.com/storytold/artcraft).
+# Storytold for Arch Linux
+
+Native Arch Linux packages for the Storytold creative suite, launcher, and AI
+desktop applications. All supported apps and the Artcraft CLI are published
+together in a verified release.
+
+```sh
+curl -fsSL https://github.com/zamkara/storytold/releases/latest/download/install.sh | bash
+artcraft -l
+artcraft -i wordcraft soundcraft
+```
+
+Supported packages: `designcraft`, `effectcraft`, `pdfcraft`, `lightcraft`,
+`filmcraft`, `vectorcraft`, `photocraft`, `cadcraft`, `deckcraft`, `gridcraft`,
+`soundcraft`, `wordcraft`, `artcraft-launcher`, `artcraft-studio`, and `artcraftx`.
+
+The command remains `artcraft`. `artcraft-studio` is the upstream AI desktop app;
+`artcraftx` is experimental. Upstream repositories are checked daily; changed
+source revisions are rebuilt, and unchanged verified packages are carried forward.
+
+This is a community packaging repository, not an official Storytold project.
+Source code, issues, and development belong to the corresponding upstream repos.
+
+## ArtCraft Studio upstream overview
+
 
 [https://github.com/user-attachments/assets/b4e24c27-d87d-4fd1-8599-dc0d0b8af48d](https://github.com/user-attachments/assets/b4e24c27-d87d-4fd1-8599-dc0d0b8af48d)
 
@@ -68,7 +90,7 @@ those providers, for example: OpenArt, FreePik, etc.
 
 ## Downloads
 
-- **Arch Linux:** grab the latest build from the [Releases page of this repository](https://github.com/zamkara/artcraft/releases)
+- **Arch Linux:** grab the latest build from the [Releases page of this repository](https://github.com/zamkara/storytold/releases)
 - [Visit the upstream website for the stable Windows and MacOS releases](https://getartcraft.com/)
 - Or you can grab a [more recent Windows and MacOS build directly from upstream](https://github.com/storytold/artcraft/releases)
 

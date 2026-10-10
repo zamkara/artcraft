@@ -6,10 +6,18 @@ if len(packages)!=1:raise SystemExit(f'Expected one package, found {len(packages
 package=packages[0]
 subprocess.run(['pacman','-Qip',str(package)],check=True)
 listing=subprocess.check_output(['bsdtar','-tf',str(package)],text=True).splitlines()
-required=['.PKGINFO','.BUILDINFO',f'usr/bin/{app}',f'usr/bin/{app}-cli',f'usr/share/applications/ai.storyteller.{app}.desktop',f'usr/share/mime/packages/ai.storyteller.{app}.xml',f'usr/share/licenses/{app}/LICENSE-MIT',f'usr/share/licenses/{app}/LICENSE-APACHE']
+app_id=state.get('app_id','ai.storyteller.'+app)
+binary=state.get('binary',app)
+required=['.PKGINFO','.BUILDINFO',f'usr/bin/{app}',f'usr/share/applications/{app_id}.desktop']
+binaries=[root/'.cache/target/release'/binary]
+if state.get('cli',True):
+ required.append(f'usr/bin/{app}-cli');binaries.append(root/'.cache/target/release'/f'{binary}-cli')
+if state.get('mime',True):required.append(f'usr/share/mime/packages/{app_id}.xml')
+if state.get('kind')=='tauri':required.append(f'usr/lib/{app}/{binary}')
+if app!='artcraftx':required.extend([f'usr/share/licenses/{app}/LICENSE-MIT',f'usr/share/licenses/{app}/LICENSE-APACHE'])
 for name in required:
  if name not in listing:raise SystemExit(f'Missing package member: {name}')
-for binary in [root/'.cache/target/release'/app,root/'.cache/target/release'/f'{app}-cli']:
+for binary in binaries:
  result=subprocess.run(['ldd',str(binary)],capture_output=True,text=True)
  if result.returncode or 'not found' in result.stdout:raise SystemExit(f'Unresolved dependencies: {result.stdout}\n{result.stderr}')
 state['package']=package.name

@@ -1,0 +1,70 @@
+# Native Arch package built from an immutable upstream Rust/Tauri revision.
+pkgname=@APP@
+pkgver=@PKGVER@
+pkgrel=@PKGREL@
+pkgdesc=@DESCRIPTION@
+arch=('x86_64')
+url=@URL@
+license=(@LICENSES@)
+depends=('glibc' 'gcc-libs' 'webkit2gtk-4.1' 'gtk3' 'libsoup3'
+         'libappindicator-gtk3' 'openssl' 'xdg-utils')
+makedepends=('rust' 'git' 'nodejs' 'npm' 'pkgconf' 'cmake' 'clang' 'nasm'
+             'python' 'desktop-file-utils')
+options=('!lto' '!debug')
+_commit=@SHA@
+source=(@SOURCES@)
+sha256sums=(@CHECKSUMS@)
+
+_build_env() {
+  export CARGO_TARGET_DIR="$startdir/.cache/target"
+  export CARGO_HOME="$startdir/.cache/cargo"
+  export CARGO_BUILD_JOBS="${ARTCRAFT_BUILD_JOBS:-2}"
+  export CARGO_PROFILE_RELEASE_DEBUG=0
+  export RUSTFLAGS='-C target-cpu=x86-64'
+  export SQLX_OFFLINE=true
+  export VITE_ENVIRONMENT_TYPE=production
+  export HUSKY=0 NX_DAEMON=false
+  export npm_config_cache="$startdir/.cache/npm"
+  export npm_config_audit=false npm_config_fund=false
+}
+build() {
+  cd "$srcdir/@SOURCE_DIR@-$_commit"
+  _build_env
+  (cd frontend && npm ci --no-audit --no-fund && npm run build --workspace=artcraft)
+  test -s frontend/apps/artcraft/dist/index.html
+  cargo build --release --locked -p @BINARY@ --features tauri/custom-protocol
+}
+check() {
+  test -x "$startdir/.cache/target/release/@BINARY@"
+}
+package() {
+  cd "$srcdir/@SOURCE_DIR@-$_commit"
+  _build_env
+  install -Dm755 "$CARGO_TARGET_DIR/release/@BINARY@" "$pkgdir/usr/lib/$pkgname/@BINARY@"
+  install -d "$pkgdir/usr/bin"
+  cat > "$pkgdir/usr/bin/$pkgname" <<WRAPPER
+#!/usr/bin/env bash
+export WEBKIT_DISABLE_DMABUF_RENDERER=\${WEBKIT_DISABLE_DMABUF_RENDERER:-1}
+export WEBKIT_DISABLE_COMPOSITING_MODE=\${WEBKIT_DISABLE_COMPOSITING_MODE:-1}
+exec /usr/lib/$pkgname/@BINARY@ "\$@"
+WRAPPER
+  chmod 755 "$pkgdir/usr/bin/$pkgname"
+  install -d "$pkgdir/usr/share/applications"
+  cat > "$pkgdir/usr/share/applications/@APP_ID@.desktop" <<DESKTOP
+[Desktop Entry]
+Type=Application
+Name=@DISPLAY_NAME@
+Comment=@DISPLAY_NAME@ creative application
+Exec=$pkgname %U
+Icon=@APP_ID@
+Terminal=false
+Categories=Graphics;AudioVideo;
+StartupWMClass=@DISPLAY_NAME@
+DESKTOP
+  desktop-file-validate "$pkgdir/usr/share/applications/@APP_ID@.desktop"
+  install -Dm644 "@CRATE_PATH@/icons/128x128.png" "$pkgdir/usr/share/icons/hicolor/128x128/apps/@APP_ID@.png"
+  for file in LICENSE LICENSE-MIT LICENSE-APACHE NOTICE COPYRIGHT; do
+    [[ ! -f "$file" ]] || install -Dm644 "$file" "$pkgdir/usr/share/licenses/$pkgname/$file"
+  done
+  install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+}
