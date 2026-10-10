@@ -2,12 +2,12 @@ import json,pathlib,tempfile,unittest
 from unittest.mock import patch
 import registry,prepare
 class RegistryTests(unittest.TestCase):
-    def test_registry_contains_all_fifteen_upstream_apps(self):
+    def test_registry_contains_all_fourteen_upstream_apps(self):
         apps=registry.load_apps()
-        self.assertEqual(len(apps),15)
+        self.assertEqual(len(apps),14)
         self.assertNotIn('artcraft',apps)
         self.assertEqual(apps['artcraft-studio']['repo'],'storytold/artcraft')
-        self.assertEqual(apps['artcraft-launcher']['repo'],'storytold/craft-launcher')
+        self.assertNotIn('artcraft-launcher',apps)
     def test_manager_name_is_reserved(self):
         with tempfile.TemporaryDirectory() as folder:
             path=pathlib.Path(folder)/'apps.json';path.write_text(json.dumps({'artcraft':{'repo':'storytold/artcraft','description':'App'}}))
@@ -16,8 +16,8 @@ class RegistryTests(unittest.TestCase):
         with patch.object(prepare,'content',return_value=json.dumps({'version':'0.42.0','identifier':'ai.artcraft.app'})):
             version,app_id,fonts=prepare.build_metadata({'kind':'tauri','crate_path':'crates/desktop/artcraft'},{'workspace':{}},'storytold/artcraft','commit')
             self.assertEqual((version,app_id,fonts),('0.42.0','ai.artcraft.app',''))
-    def test_recipes_support_launcher_and_tauri_without_a_cli_binary(self):
-        for name in ['artcraft-launcher','artcraft-studio','artcraftx']:
+    def test_recipes_support_tauri_without_a_cli_binary(self):
+        for name in ['artcraft-studio','artcraftx']:
             config=registry.load_apps()[name];repo=config['repo'];sha='a'*40
             def api(path):
                 if path=='repos/'+repo:return {'default_branch':'main'}
@@ -36,4 +36,4 @@ class RegistryTests(unittest.TestCase):
                 subprocess.run(['bash','-n',str(pathlib.Path(folder)/'PKGBUILD')],check=True)
                 if config.get('kind')=='tauri':
                     self.assertIn('npm ci',recipe);self.assertIn('tauri/custom-protocol',recipe)
-                else:self.assertIn('cargo build --release --locked -p artcraft-launcher',recipe)
+                    self.assertIn('nx run artcraft:build',recipe);self.assertIn('--allow-git=all',recipe)

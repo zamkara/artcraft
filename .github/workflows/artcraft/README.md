@@ -22,10 +22,11 @@ curl -fsSL https://github.com/zamkara/storytold/releases/latest/download/install
 artcraft -ia
 ```
 
-Artcraft discovers available packages from release assets. App names in apps.json
-identify supported upstream projects; the list command only shows apps with
-actual published packages. Pacman owns installations and upgrades. Both the piped
-installer and pacman read confirmations from the terminal.
+Artcraft discovers available packages from verified release metadata. The workflow
+registry in apps.json declares build targets and is not embedded in the manager.
+The TUI initially shows installed apps; Sync discovers the published catalog.
+Pacman owns installations and upgrades. CLI confirmations read from the terminal;
+the TUI provides transaction confirmation and masked authentication prompts.
 
 Full original upstream changelogs are separate APP.CHANGELOG.md assets. Release
 notes link them and include original excerpts within GitHub's body-size limit.

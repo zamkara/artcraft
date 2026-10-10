@@ -63,7 +63,9 @@ def publish(artifacts,repository,target,directory):
     run=os.environ['GITHUB_RUN_ID']
     tag=f'artcraft-suite-r{run}.g{target[:12]}'
     (directory/'install.sh').write_text((HERE/'install.sh.in').read_text().replace('@RELEASE_TAG@',tag))
-    manifest={'repository':repository,'target':target,'apps':states}
+    config=load_apps()
+    catalog_states={app:{**state,'description':config.get(app,{}).get('description','Native Arch application manager')} for app,state in states.items()}
+    manifest={'repository':repository,'target':target,'apps':catalog_states}
     (directory/'suite.json').write_text(json.dumps(manifest,indent=2)+'\n')
     paths=sorted(directory.iterdir())
     with (directory/'SHA256SUMS').open('w') as stream:

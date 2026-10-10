@@ -1,3 +1,6 @@
+mod catalog;
+mod tui;
+
 use anyhow::{Context, Result, bail, ensure};
 use clap::Parser;
 use reqwest::blocking::Client;
@@ -6,7 +9,7 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
-    io::{Read, Write},
+    io::{IsTerminal, Read, Write},
     path::{Path, PathBuf},
     process::{Command as Process, ExitCode, Stdio},
     time::{Duration, SystemTime, UNIX_EPOCH},
@@ -20,10 +23,19 @@ const MAX_PACKAGE: u64 = 2 * 1024 * 1024 * 1024;
 #[command(
     version = option_env!("ARTCRAFT_PKGVER").unwrap_or(env!("CARGO_PKG_VERSION")),
     about = "Install and update native Storytold applications on Arch Linux",
-    group(clap::ArgGroup::new("action").args(["list", "info", "install", "updates", "upgrade", "remove", "self_update", "bootstrap"]))
+    group(clap::ArgGroup::new("action").args(["list", "info", "install", "updates", "upgrade", "remove", "self_update", "bootstrap", "sync", "open", "tui"]))
 )]
 struct Cli {
-    /// List apps and available versions (default)
+    /// Open the terminal interface
+    #[arg(short = 't', long)]
+    tui: bool,
+    /// Synchronize the release catalog without installing packages
+    #[arg(short = 'S', long)]
+    sync: bool,
+    /// Open an installed app
+    #[arg(short = 'o', long)]
+    open: bool,
+    /// List apps and available versions
     #[arg(short = 'l', long)]
     list: bool,
     /// Show app details
@@ -32,7 +44,7 @@ struct Cli {
     /// Install selected apps
     #[arg(short = 'i', long)]
     install: bool,
-    /// Check for updates
+    /// Show upgrades using the saved catalog; use -S to synchronize
     #[arg(short = 'c', long)]
     updates: bool,
     /// Upgrade installed apps and Artcraft, or selected apps
@@ -60,6 +72,9 @@ struct Cli {
 }
 enum Command {
     List,
+    Tui,
+    Sync,
+    Open { app: String },
     Info { app: String, changelog: bool },
     Install { apps: Vec<String> },
     Updates,
@@ -75,13 +90,30 @@ impl Cli {
             "Use -a with -i or -u"
         );
         ensure!(
-            self.apps.is_empty() || self.install || self.upgrade || self.remove || self.info,
-            "App names require -i, -u, -r, or -s"
+            self.apps.is_empty()
+                || self.install
+                || self.upgrade
+                || self.remove
+                || self.info
+                || self.open,
+            "App names require -i, -u, -r, -s, or -o"
         );
         ensure!(
             !self.all || self.apps.is_empty(),
             "Use -a alone, or specify app names"
         );
+        if self.open {
+            ensure!(self.apps.len() == 1, "Use -o APP for one app");
+            return Ok(Command::Open {
+                app: self.apps[0].clone(),
+            });
+        }
+        if self.tui {
+            return Ok(Command::Tui);
+        }
+        if self.sync {
+            return Ok(Command::Sync);
+        }
         if self.install {
             let apps = if self.all {
                 vec!["all".to_string()]
@@ -117,10 +149,16 @@ impl Cli {
         if self.updates {
             return Ok(Command::Updates);
         }
-        Ok(Command::List)
+        Ok(
+            if !self.list && std::io::stdin().is_terminal() && std::io::stdout().is_terminal() {
+                Command::Tui
+            } else {
+                Command::List
+            },
+        )
     }
 }
-#[derive(Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 struct App {
     repo: String,
     description: String,
@@ -149,16 +187,16 @@ struct Available {
     version: String,
     release: Release,
     package: Asset,
+    info: App,
 }
 #[derive(Deserialize, Serialize)]
 struct Cache {
     time: u64,
     releases: Vec<Release>,
+    #[serde(default)]
+    apps: BTreeMap<String, App>,
 }
 
-fn apps() -> Result<BTreeMap<String, App>> {
-    Ok(serde_json::from_str(include_str!("../../apps.json"))?)
-}
 fn now() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -238,7 +276,7 @@ fn available(release: &Release, supported: &BTreeSet<String>) -> Option<Availabl
         let Some(package) = release
             .assets
             .iter()
-            .find(|a| a.name.starts_with(&prefix) && a.name.ends_with("-x86_64.pkg.tar.zst"))
+            .find(|a| catalog::package_name(&a.name).is_some_and(|(name, _)| name == *app))
         else {
             continue;
         };
@@ -257,81 +295,13 @@ fn available(release: &Release, supported: &BTreeSet<String>) -> Option<Availabl
             version: version.to_string(),
             release: release.clone(),
             package: package.clone(),
+            info: App {
+                repo: String::new(),
+                description: "Native Storytold application".into(),
+            },
         });
     }
     None
-}
-fn catalog(
-    client: &Client,
-    supported: &BTreeSet<String>,
-    refresh: bool,
-) -> Result<BTreeMap<String, Available>> {
-    let path = cache_path();
-    let cached = path
-        .as_ref()
-        .and_then(|p| fs::read(p).ok())
-        .and_then(|b| serde_json::from_slice::<Cache>(&b).ok());
-    let releases = if !refresh
-        && cached
-            .as_ref()
-            .is_some_and(|c| now().saturating_sub(c.time) < 300)
-    {
-        cached.expect("cache was checked").releases
-    } else {
-        let mut collected = Vec::new();
-        let mut found = BTreeSet::new();
-        for page in 1..=50 {
-            let values: Vec<Release> = serde_json::from_slice(&get(
-                client,
-                &format!("{API}/releases?per_page=100&page={page}"),
-                16 * 1024 * 1024,
-            )?)?;
-            for release in &values {
-                for app in supported {
-                    if let Some(a) = available(release, &BTreeSet::from([app.clone()])) {
-                        found.insert(a.app);
-                    }
-                }
-            }
-            let end = values.len() < 100 || found.len() == supported.len();
-            collected.extend(values);
-            if end {
-                break;
-            }
-        }
-        if let Some(path) = path {
-            if let Some(parent) = path.parent() {
-                if fs::create_dir_all(parent).is_ok() {
-                    if let Ok(mut file) = tempfile::NamedTempFile::new_in(parent) {
-                        if serde_json::to_writer(
-                            &mut file,
-                            &Cache {
-                                time: now(),
-                                releases: collected.clone(),
-                            },
-                        )
-                        .is_ok()
-                        {
-                            let _ = file.persist(path);
-                        }
-                    }
-                }
-            }
-        }
-        collected
-    };
-    // Choose the latest published release, not whichever draft was created first.
-    let mut releases = releases;
-    releases.sort_by(|a, b| b.published_at.cmp(&a.published_at));
-    let mut result = BTreeMap::new();
-    for release in releases {
-        for app in supported {
-            if let Some(a) = available(&release, &BTreeSet::from([app.clone()])) {
-                result.entry(a.app.clone()).or_insert(a);
-            }
-        }
-    }
-    Ok(result)
 }
 fn installed(app: &str) -> Result<Option<String>> {
     let output = Process::new("/usr/bin/pacman")
@@ -380,7 +350,7 @@ fn select(
     for app in requested {
         ensure!(
             supported.contains(app) && (include_self || app != "artcraft"),
-            "Unknown app '{app}'. Run 'artcraft list' for available apps."
+            "Unknown app '{app}'. Run 'artcraft -l' for available apps."
         );
         result.insert(app.clone());
     }
@@ -406,7 +376,16 @@ fn checksum(text: &str, filename: &str) -> Result<String> {
     );
     Ok(matches.remove(0))
 }
+#[cfg(test)]
 fn download(client: &Client, app: &Available, directory: &Path) -> Result<PathBuf> {
+    download_with_feedback(client, app, directory, None)
+}
+fn download_with_feedback(
+    client: &Client,
+    app: &Available,
+    directory: &Path,
+    feedback: Option<&dyn Feedback>,
+) -> Result<PathBuf> {
     let sums = app
         .release
         .assets
@@ -424,7 +403,10 @@ fn download(client: &Client, app: &Available, directory: &Path) -> Result<PathBu
         "Package size is invalid"
     );
     let path = directory.join(&app.package.name);
-    println!("Downloading {} {}...", app.app, app.version);
+    report(
+        feedback,
+        format!("Downloading {} {}...", app.app, app.version),
+    );
     let mut response = client
         .get(asset_url(&app.package, &app.release.tag_name)?)
         .send()?
@@ -435,6 +417,7 @@ fn download(client: &Client, app: &Available, directory: &Path) -> Result<PathBu
         .open(&path)?;
     let mut digest = Sha256::new();
     let mut received = 0;
+    let mut last_percent = 0;
     let mut buffer = [0u8; 65536];
     loop {
         let length = response.read(&mut buffer)?;
@@ -448,6 +431,19 @@ fn download(client: &Client, app: &Available, directory: &Path) -> Result<PathBu
         );
         digest.update(&buffer[..length]);
         file.write_all(&buffer[..length])?;
+        let percent = received * 100 / app.package.size;
+        if percent >= last_percent + 10 || received == app.package.size {
+            report(
+                feedback,
+                format!(
+                    "{}: {percent}% ({:.1} / {:.1} MiB)",
+                    app.app,
+                    received as f64 / 1048576.0,
+                    app.package.size as f64 / 1048576.0
+                ),
+            );
+            last_percent = percent;
+        }
     }
     file.sync_all()?;
     ensure!(received == app.package.size, "Incomplete package download");
@@ -471,10 +467,28 @@ fn download(client: &Client, app: &Available, directory: &Path) -> Result<PathBu
         fields.next() == Some(app.app.as_str()) && fields.next() == Some(app.version.as_str()),
         "Package identity does not match its release"
     );
-    println!("Verified {} {}", app.app, app.version);
+    report(feedback, format!("Verified {} {}", app.app, app.version));
     Ok(path)
 }
+trait Feedback: Send + Sync {
+    fn log(&self, text: String);
+    fn confirm(&self, text: String) -> Result<bool>;
+    fn password(&self) -> Result<Option<String>>;
+}
+fn report(feedback: Option<&dyn Feedback>, text: String) {
+    if let Some(feedback) = feedback {
+        feedback.log(text);
+    } else {
+        println!("{text}");
+    }
+}
 fn pacman(arguments: &[String]) -> Result<()> {
+    pacman_with_feedback(arguments, None)
+}
+fn pacman_with_feedback(arguments: &[String], feedback: Option<&dyn Feedback>) -> Result<()> {
+    if let Some(feedback) = feedback {
+        return tui::transaction(arguments, feedback);
+    }
     ensure!(
         Path::new("/etc/arch-release").exists(),
         "Artcraft installation requires Arch Linux or an Arch derivative such as Omarchy"
@@ -503,6 +517,15 @@ fn install(
     targets: &[String],
     upgrade_only: bool,
 ) -> Result<()> {
+    install_with_feedback(client, catalog, targets, upgrade_only, None)
+}
+fn install_with_feedback(
+    client: &Client,
+    catalog: &BTreeMap<String, Available>,
+    targets: &[String],
+    upgrade_only: bool,
+    feedback: Option<&dyn Feedback>,
+) -> Result<()> {
     ensure!(
         std::env::consts::ARCH == "x86_64",
         "Only x86_64 packages are currently available"
@@ -523,32 +546,78 @@ fn install(
         })?;
         if let Some(local) = local {
             if !newer(&remote.version, &local)? {
-                println!("{app} is up to date ({local})");
+                report(feedback, format!("{app} is up to date ({local})"));
                 continue;
             }
         }
         pending.push(remote);
     }
     for remote in pending {
-        files.push(download(client, remote, directory.path())?);
+        files.push(download_with_feedback(
+            client,
+            remote,
+            directory.path(),
+            feedback,
+        )?);
     }
     if files.is_empty() {
-        println!("No packages to install.");
+        report(feedback, "No packages to install.".into());
         return Ok(());
     }
     let mut arguments = vec!["-U".to_string(), "--".to_string()];
     arguments.extend(files.iter().map(|p| p.to_string_lossy().into_owned()));
-    pacman(&arguments)
+    pacman_with_feedback(&arguments, feedback)
 }
+
+fn show_updates(supported: &BTreeSet<String>, catalog: &BTreeMap<String, Available>) -> Result<()> {
+    let mut count = 0;
+    for name in supported {
+        if let Some(local) = installed(name)? {
+            if let Some(remote) = catalog.get(name) {
+                if newer(&remote.version, &local)? {
+                    println!("{name}: {local} -> {}", remote.version);
+                    count += 1;
+                }
+            } else {
+                println!("{name}: no published release available");
+            }
+        }
+    }
+    if count == 0 {
+        println!("No upgrades available in the saved catalog. Use -S to synchronize.");
+    }
+    Ok(())
+}
+
 fn main_result() -> Result<()> {
     let cli = Cli::parse();
-    let known = apps()?;
-    let mut supported: BTreeSet<String> = known.keys().cloned().collect();
-    supported.insert("artcraft".to_string());
+    let local_apps = catalog::installed_apps()?;
+    let local_names: BTreeSet<String> = local_apps
+        .keys()
+        .cloned()
+        .chain(std::iter::once("artcraft".into()))
+        .collect();
     let refresh = cli.refresh;
     let command = cli.into_command()?;
+    if matches!(command, Command::Tui) {
+        return tui::run(refresh);
+    }
+    if let Command::Open { app } = &command {
+        ensure!(
+            local_apps.contains_key(app),
+            "Unknown installed app '{app}'"
+        );
+        ensure!(installed(app)?.is_some(), "{app} is not installed");
+        Process::new(app)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .with_context(|| format!("Could not open {app}"))?;
+        return Ok(());
+    }
     if let Command::Remove { apps } = &command {
-        let targets = select(apps, &supported, true)?;
+        let targets = select(apps, &local_names, true)?;
         let mut arguments = vec!["-R".to_string(), "--".to_string()];
         arguments.extend(targets);
         return pacman(&arguments);
@@ -567,40 +636,67 @@ fn main_result() -> Result<()> {
             &format!("{API}/releases/tags/{release}"),
             2 * 1024 * 1024,
         )?)?;
-        let manager =
-            available(&release, &supported).context("Release has no native Artcraft package")?;
+        let manager = available(&release, &BTreeSet::from(["artcraft".into()]))
+            .context("Release has no native Artcraft package")?;
         let catalog = BTreeMap::from([("artcraft".to_string(), manager)]);
         return install(&client, &catalog, &["artcraft".to_string()], false);
     }
-    let catalog = catalog(
+    let catalog = catalog::load(
         &client,
-        &supported,
         refresh
             || matches!(
                 command,
                 Command::Upgrade { .. }
                     | Command::SelfUpdate
-                    | Command::Updates
+                    | Command::Sync
                     | Command::Install { .. }
             ),
     )?;
+    let mut known: BTreeMap<String, App> = local_apps
+        .iter()
+        .map(|(name, (_, info))| (name.clone(), info.clone()))
+        .collect();
+    for (name, remote) in &catalog {
+        known.insert(name.clone(), remote.info.clone());
+    }
+    let supported: BTreeSet<String> = known
+        .keys()
+        .cloned()
+        .chain(std::iter::once("artcraft".into()))
+        .collect();
     match command {
+        Command::Sync => {
+            println!("Release catalog synchronized. No packages were changed.");
+            show_updates(&supported, &catalog)?;
+        }
         Command::List => {
             if !known.keys().any(|name| catalog.contains_key(name)) {
-                println!("No creative-app packages have been published yet.");
+                println!("The saved catalog is empty. Run artcraft -S to synchronize.");
                 println!("Releases: https://github.com/zamkara/storytold/releases");
                 return Ok(());
             }
-            println!("{:<15} {:<42} AVAILABLE", "APP", "INSTALLED");
+            println!(
+                "{:<20} {:<42} {:<42} STATUS",
+                "APP", "INSTALLED", "AVAILABLE"
+            );
             for name in known.keys().filter(|name| catalog.contains_key(*name)) {
                 let local = installed(name)?.unwrap_or_else(|| "Not installed".to_string());
                 let remote = catalog
                     .get(name)
                     .map(|a| a.version.as_str())
                     .unwrap_or("Not released yet");
-                println!("{name:<15} {local:<42} {remote}");
+                let status = if local == "Not installed" {
+                    "Not installed"
+                } else if newer(remote, &local)? {
+                    "Upgrade available"
+                } else {
+                    "Current"
+                };
+                println!("{name:<20} {local:<42} {remote:<42} {status}");
             }
-            println!("\nInstall: artcraft -i APP\nUpdates: artcraft -c\nUpgrade: artcraft -u");
+            println!(
+                "\nInstall: artcraft -i APP\nSync catalog: artcraft -S\nCheck saved catalog: artcraft -c\nUpgrade: artcraft -u"
+            );
         }
         Command::Info { app, changelog } => {
             ensure!(supported.contains(&app), "Unknown app '{app}'");
@@ -617,8 +713,9 @@ fn main_result() -> Result<()> {
             );
             if let Some(remote) = catalog.get(&app) {
                 println!(
-                    "Available: {}\nRelease: {}\nPublished: {}",
+                    "Available: {}\nPackage size: {:.2} MiB\nRelease: {}\nPublished: {}",
                     remote.version,
+                    remote.package.size as f64 / 1048576.0,
                     remote.release.html_url,
                     remote.release.published_at.as_deref().unwrap_or("Unknown")
                 );
@@ -649,9 +746,12 @@ fn main_result() -> Result<()> {
                 println!("Available: Not released yet");
             }
         }
-        Command::Install { apps } => {
-            install(&client, &catalog, &select(&apps, &supported, false)?, false)?
-        }
+        Command::Install { apps } => install(
+            &client,
+            &catalog,
+            &select(&apps, &catalog.keys().cloned().collect(), false)?,
+            false,
+        )?,
         Command::Upgrade { apps } => {
             let targets = if apps.is_empty() {
                 supported.iter().cloned().collect()
@@ -661,25 +761,11 @@ fn main_result() -> Result<()> {
             install(&client, &catalog, &targets, true)?;
         }
         Command::SelfUpdate => install(&client, &catalog, &["artcraft".to_string()], true)?,
-        Command::Updates => {
-            let mut count = 0;
-            for name in &supported {
-                if let Some(local) = installed(name)? {
-                    if let Some(remote) = catalog.get(name) {
-                        if newer(&remote.version, &local)? {
-                            println!("{name}: {local} -> {}", remote.version);
-                            count += 1;
-                        }
-                    } else {
-                        println!("{name}: no published release available");
-                    }
-                }
-            }
-            if count == 0 {
-                println!("No updates available for installed apps.");
-            }
-        }
-        Command::Remove { .. } | Command::SelfInstall { .. } => unreachable!(),
+        Command::Updates => show_updates(&supported, &catalog)?,
+        Command::Remove { .. }
+        | Command::SelfInstall { .. }
+        | Command::Tui
+        | Command::Open { .. } => unreachable!(),
     }
     Ok(())
 }
@@ -742,6 +828,33 @@ mod tests {
         ));
     }
     #[test]
+    fn sync_check_and_open_are_separate_actions() {
+        assert!(matches!(
+            Cli::try_parse_from(["artcraft", "-S"])
+                .unwrap()
+                .into_command()
+                .unwrap(),
+            Command::Sync
+        ));
+        assert!(matches!(
+            Cli::try_parse_from(["artcraft", "-c"])
+                .unwrap()
+                .into_command()
+                .unwrap(),
+            Command::Updates
+        ));
+        assert!(
+            matches!(Cli::try_parse_from(["artcraft", "-o", "designcraft"]).unwrap().into_command().unwrap(), Command::Open { app } if app == "designcraft")
+        );
+        assert!(Cli::try_parse_from(["artcraft", "-S", "-u"]).is_err());
+        assert!(
+            Cli::try_parse_from(["artcraft", "-o"])
+                .unwrap()
+                .into_command()
+                .is_err()
+        );
+    }
+    #[test]
     fn suite_release_exposes_each_published_package() {
         let mut release = release();
         release.tag_name = "artcraft-suite-20261008".into();
@@ -755,8 +868,7 @@ mod tests {
     #[ignore = "Downloads a real published package; requires network and Arch pacman"]
     fn live_package_is_verified_without_installation() {
         let client = client().unwrap();
-        let supported = BTreeSet::from(["designcraft".to_string()]);
-        let catalog = catalog(&client, &supported, true).unwrap();
+        let catalog = catalog::load(&client, true).unwrap();
         let remote = catalog.get("designcraft").unwrap();
         let directory = tempfile::tempdir().unwrap();
         let package = download(&client, remote, directory.path()).unwrap();

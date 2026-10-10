@@ -122,7 +122,7 @@ def main():
     info=api(f'repos/{repo}');commit=api(f'repos/{repo}/commits/{urllib.parse.quote(info["default_branch"],safe="")}')
     sha=commit['sha'];cargo=tomllib.loads(content(repo,'Cargo.toml',sha))
     version,app_id,fonts=build_metadata(config,cargo,repo,sha)
-    state={'app':args.app,'upstream':repo,'branch':info['default_branch'],'commit':sha,'version':version,'commit_date':commit['commit']['committer']['date'],'fonts_commit':fonts,'recipe_sha256':recipe_hash(config),'architecture':'x86_64','kind':config.get('kind','craft'),'binary':config.get('binary',args.app),'cli':config.get('cli',True),'mime':config.get('mime',True),'app_id':app_id}
+    state={'app':args.app,'description':config['description'],'upstream':repo,'branch':info['default_branch'],'commit':sha,'version':version,'commit_date':commit['commit']['committer']['date'],'fonts_commit':fonts,'recipe_sha256':recipe_hash(config),'architecture':'x86_64','kind':config.get('kind','craft'),'binary':config.get('binary',args.app),'cli':config.get('cli',True),'mime':config.get('mime',True),'app_id':app_id}
     old=previous(args.repository,args.app)
     if same_inputs(old,state):
         output({'changed':'false','app':args.app});return

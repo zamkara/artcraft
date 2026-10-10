@@ -59,15 +59,6 @@
     "description": "Native word processing and document design application",
     "audio": false
   },
-  "artcraft-launcher": {
-    "repo": "storytold/craft-launcher",
-    "description": "Official graphical launcher for the Craft App Suite",
-    "audio": false,
-    "binary": "artcraft-launcher",
-    "cli": false,
-    "mime": false,
-    "env_prefix": "ARTCRAFT_LAUNCHER"
-  },
   "artcraft-studio": {
     "repo": "storytold/artcraft",
     "description": "ArtCraft Studio AI image, video and interactive creation application",

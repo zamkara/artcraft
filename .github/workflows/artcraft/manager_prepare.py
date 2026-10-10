@@ -4,7 +4,7 @@ from prepare import api,download_archive,output,pkgversion,previous
 HERE=pathlib.Path(__file__).resolve().parent
 
 def fingerprint():
-    files=list((HERE/'cli').rglob('*.rs'))+[HERE/'cli/Cargo.toml',HERE/'cli/Cargo.lock',HERE/'apps.json',HERE/'install.sh.in',HERE/'manager.PKGBUILD.in',HERE/'manager-build.sh',HERE/'manager_prepare.py',HERE.parents[2]/'LICENSE']
+    files=list((HERE/'cli').rglob('*.rs'))+[HERE/'cli/Cargo.toml',HERE/'cli/Cargo.lock',HERE/'install.sh.in',HERE/'manager.PKGBUILD.in',HERE/'manager-build.sh',HERE/'manager_prepare.py',HERE.parents[2]/'LICENSE']
     digest=hashlib.sha256()
     for path in sorted(files):
         digest.update(path.name.encode());digest.update(path.read_bytes())

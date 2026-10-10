@@ -26,11 +26,17 @@ _build_env() {
   export HUSKY=0 NX_DAEMON=false
   export npm_config_cache="$startdir/.cache/npm"
   export npm_config_audit=false npm_config_fund=false
+  # Public Git dependencies must not require SSH credentials in clean CI.
+  export GIT_CONFIG_COUNT=2
+  export GIT_CONFIG_KEY_0=url.https://github.com/.insteadOf
+  export GIT_CONFIG_VALUE_0=ssh://git@github.com/
+  export GIT_CONFIG_KEY_1=url.https://github.com/.insteadOf
+  export GIT_CONFIG_VALUE_1=git@github.com:
 }
 build() {
   cd "$srcdir/@SOURCE_DIR@-$_commit"
   _build_env
-  (cd frontend && npm ci --no-audit --no-fund && npm run build --workspace=artcraft)
+  (cd frontend && npm ci --no-audit --no-fund --allow-git=all --allow-remote=all --dangerously-allow-all-scripts && ./node_modules/.bin/nx run artcraft:build --skip-nx-cache --parallel=2)
   test -s frontend/apps/artcraft/dist/index.html
   cargo build --release --locked -p @BINARY@ --features tauri/custom-protocol
 }

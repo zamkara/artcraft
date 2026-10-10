@@ -1,6 +1,6 @@
 # Storytold for Arch Linux
 
-Native Arch Linux packages for the Storytold creative suite, launcher, and AI
+Native Arch Linux packages for the Storytold creative suite and AI
 desktop applications. All supported apps and the Artcraft CLI are published
 together in a verified release.
 
@@ -12,7 +12,7 @@ artcraft -i wordcraft soundcraft
 
 Supported packages: `designcraft`, `effectcraft`, `pdfcraft`, `lightcraft`,
 `filmcraft`, `vectorcraft`, `photocraft`, `cadcraft`, `deckcraft`, `gridcraft`,
-`soundcraft`, `wordcraft`, `artcraft-launcher`, `artcraft-studio`, and `artcraftx`.
+`soundcraft`, `wordcraft`, `artcraft-studio`, and `artcraftx`.
 
 The command remains `artcraft`. `artcraft-studio` is the upstream AI desktop app;
 `artcraftx` is experimental. Upstream repositories are checked daily; changed
